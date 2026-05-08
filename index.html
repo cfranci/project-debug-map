@@ -1,0 +1,2902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Debug Map</title>
+    <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+        .container { display: flex; height: 100vh; overflow: hidden; }
+
+        .sidebar {
+            width: 320px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            overflow-y: auto;
+            padding: 20px;
+            flex-shrink: 0;
+        }
+
+        .sidebar h1 { font-size: 18px; margin-bottom: 15px; color: #38bdf8; }
+
+        .sidebar-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+
+        .sidebar-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 10px 12px; background: #334155; border: 1px solid #475569;
+            border-radius: 6px; color: #e2e8f0; font-size: 13px; cursor: pointer;
+        }
+        .sidebar-btn:hover { background: #475569; }
+        .sidebar-btn.bug-btn:hover { background: #ef4444; color: white; }
+        .sidebar-btn.page-btn:hover { background: #f59e0b; color: white; }
+
+        .env-toggle { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .env-btn { flex: 1; padding: 8px; background: #334155; border: 1px solid #475569; border-radius: 6px; color: #94a3b8; font-size: 12px; cursor: pointer; text-align: center; }
+        .env-btn:hover { background: #475569; }
+        .env-btn.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; font-weight: bold; }
+
+        .sidebar h2 { font-size: 14px; margin: 15px 0 8px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+
+        .nav-group { margin-bottom: 10px; }
+
+        .nav-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 10px; margin: 3px 0; background: #334155; border-radius: 6px;
+            color: #e2e8f0; text-decoration: none; font-size: 12px; cursor: pointer;
+        }
+        .nav-item:hover { background: #475569; }
+        .nav-item.active { background: #475569; border: 1px solid #38bdf8; }
+
+        .nav-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .nav-item .ext-link { color: #94a3b8; padding: 0 4px; }
+        .nav-item .bug-link { color: #ef4444; padding: 0 4px; font-weight: bold; }
+        .nav-item .bug-link:hover { color: #f87171; }
+
+        .main-content { flex: 1; overflow: auto; position: relative; }
+
+        #diagram { width: 100%; height: 100%; cursor: grab; }
+        #diagram:active { cursor: grabbing; }
+
+        .map-spacing-controls {
+            position: absolute; top: 8px; left: 10px; z-index: 140;
+            display: flex; gap: 14px; align-items: center;
+            background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+            padding: 5px 12px; font-size: 11px; color: #94a3b8;
+        }
+        .map-spacing-controls label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+        .map-spacing-controls input[type="range"] { width: 90px; height: 4px; accent-color: #38bdf8; cursor: pointer; }
+        .map-spacing-controls span { min-width: 24px; text-align: right; color: #e2e8f0; font-weight: 600; }
+
+        .node rect { rx: 6; ry: 6; fill: #1a3a2a; stroke: #2d8a4e; stroke-width: 1.5; }
+        .node.has-new rect { fill: #3b1515; stroke: #e87040; stroke-width: 2; }
+        .node.has-review rect { fill: #1e3a5f; stroke: #3b82f6; stroke-width: 2; }
+        .node.selected rect { stroke: #38bdf8; stroke-width: 3; filter: drop-shadow(0 0 6px #38bdf8); }
+        .node text { font-size: 12px; fill: #e2e8f0; }
+        .node .star-icon, .node .flag-icon { font-size: 10px; pointer-events: none; }
+        .card-star, .card-flag, .bug-star, .bug-flag {
+            background: none; border: none; cursor: pointer; font-size: 10px; padding: 0 2px; line-height: 1;
+        }
+        .card-star, .bug-star { color: #92810050; }
+        .card-star:hover, .bug-star:hover { color: #b8a33090; }
+        .card-star.active, .bug-star.active { color: #d4a82a; }
+        .card-flag, .bug-flag { color: #8b3a5050; }
+        .card-flag:hover, .bug-flag:hover { color: #9b4a6090; }
+        .card-flag.active, .bug-flag.active { color: #8b2252; }
+
+        .link { stroke: #334155; stroke-width: 1.5; fill: none; cursor: pointer; pointer-events: stroke; }
+        .link:hover { stroke: #f59e0b; stroke-width: 3; }
+
+        /* Collapse toggle tabs */
+        .sidebar-toggle {
+            position: absolute; top: 50%; left: 0; transform: translateY(-50%);
+            width: 20px; height: 50px; background: #1e293b; border: 1px solid #334155;
+            border-left: none; border-radius: 0 6px 6px 0; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            color: #94a3b8; font-size: 12px; z-index: 160;
+            transition: left 0.2s;
+        }
+        .sidebar-toggle:hover { background: #334155; color: #e2e8f0; }
+
+        .sidebar { transition: width 0.2s, padding 0.2s; }
+        .sidebar.collapsed { width: 0; padding: 0; overflow: hidden; }
+        .sidebar.collapsed + .main-content .sidebar-toggle { left: 0; }
+
+        .bugpanel-toggle {
+            position: fixed; bottom: 0; right: 20px;
+            width: 50px; height: 20px; background: #1e293b; border: 1px solid #334155;
+            border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            color: #94a3b8; font-size: 12px; z-index: 160;
+            transition: bottom 0.2s;
+        }
+        .bugpanel-toggle:hover { background: #334155; color: #e2e8f0; }
+        .bugpanel-toggle.panel-open { border-color: #ef4444; }
+
+        /* Bug Panel */
+        .bug-panel {
+            display: none; position: fixed; bottom: 0; left: 320px; right: 0;
+            height: 250px; background: #1e293b; border-top: 2px solid #ef4444;
+            z-index: 250; padding: 15px; overflow-y: auto;
+        }
+        .bug-panel.active { display: block; }
+
+        .bug-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .bug-header h3 { color: #ef4444; margin: 0; font-size: 16px; }
+
+        .bug-list { list-style: none; padding: 0; margin: 0; }
+        .bug-item {
+            display: flex; align-items: flex-start; padding: 10px; margin: 6px 0;
+            background: #0f172a; border-radius: 6px; border-left: 4px solid;
+        }
+        .bug-item.status-new { border-left-color: #ef4444; }
+        .bug-item.status-review { border-left-color: #3b82f6; }
+        .bug-item.status-fixed { border-left-color: #22c55e; }
+
+        .bug-status { font-size: 14px; margin-right: 10px; cursor: pointer; }
+        .bug-text { flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 4px; color: #e2e8f0; padding: 8px; font-size: 13px; width: 100%; font-family: inherit; overflow: hidden; resize: none; min-height: 38px; }
+        .bug-text:focus { outline: none; border-color: #ef4444; }
+
+        .bug-page-tag { font-size: 10px; color: #64748b; margin-bottom: 4px; }
+        .bug-delete { background: none; border: none; color: #64748b; cursor: pointer; font-size: 16px; margin-left: 8px; }
+        .bug-delete:hover { color: #ef4444; }
+
+        .bug-actions { display: flex; gap: 8px; }
+        .bug-btn-small { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .bug-btn-add { background: #22c55e; color: white; }
+        .bug-btn-show { background: #3b82f6; color: white; }
+
+        /* Bug images */
+        .bug-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .bug-image-wrapper { position: relative; display: inline-block; }
+        .bug-image-wrapper img { max-width: 200px; max-height: 150px; border-radius: 4px; border: 1px solid #334155; cursor: pointer; }
+        .bug-image-wrapper img:hover { border-color: #3b82f6; }
+        .bug-image-delete { position: absolute; top: 2px; right: 2px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; }
+        .bug-image-wrapper:hover .bug-image-delete { opacity: 1; }
+        .paste-hint { font-size: 10px; color: #64748b; margin-top: 2px; }
+
+        /* Status revert dot */
+        .bug-revert { font-size: 8px; cursor: pointer; margin-right: 2px; opacity: 0.5; vertical-align: top; }
+        .bug-revert:hover { opacity: 1; }
+
+        /* Device toggles on bugs */
+        .device-toggles { display: flex; gap: 2px; }
+        .device-toggle { font-size: 12px; cursor: pointer; padding: 1px 3px; border-radius: 3px; opacity: 0.35; user-select: none; }
+        .device-toggle.active { opacity: 1; background: #334155; }
+
+        /* Device quick-add buttons */
+        .device-add-btn { cursor: pointer; font-size: 14px; padding: 4px 6px; border-radius: 4px; background: #334155; user-select: none; }
+        .device-add-btn:hover { background: #22c55e; }
+
+        /* Text size controls */
+        .text-size-controls { display: flex; align-items: center; gap: 4px; margin-bottom: 12px; }
+        .text-size-btn { background: #334155; border: 1px solid #475569; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .text-size-btn:hover { background: #475569; }
+        .text-size-label { color: #94a3b8; font-size: 11px; margin: 0 4px; }
+
+        /* Status count badges */
+        .status-badge { padding: 2px 6px; border-radius: 10px; font-size: 10px; color: white; cursor: pointer; display: inline-block; margin-left: 2px; }
+        .status-badge:hover { opacity: 0.8; }
+        .status-badge.red { background: #ef4444; }
+        .status-badge.blue { background: #3b82f6; }
+        .status-badge.green { background: #22c55e; }
+
+        /* Search bar */
+        .search-inline {
+            display: flex; align-items: center; font-size: 12px;
+            flex: 1; min-width: 0;
+            background: #0f172a; border: 1px solid #334155; border-radius: 4px;
+            padding: 0 4px 0 0;
+        }
+        .search-inline:focus-within { border-color: #6366f1; }
+        .search-inline input {
+            background: transparent; border: none;
+            color: #e2e8f0; padding: 5px 8px; font-size: 12px;
+            font-family: inherit; outline: none;
+            flex: 1; min-width: 0;
+        }
+        .search-inline .search-count { color: #94a3b8; font-size: 10px; white-space: nowrap; padding: 0 2px; }
+        .search-inline button {
+            background: transparent; border: none; color: #64748b;
+            padding: 2px 4px; cursor: pointer; font-size: 10px; line-height: 1;
+        }
+        .search-inline button:hover { color: #e2e8f0; }
+        .search-inline button:disabled { opacity: 0.3; cursor: default; }
+
+        mark.search-hit { background: #854d0e; color: #fef08a; border-radius: 2px; padding: 0 1px; }
+        mark.search-hit.current { background: #f59e0b; color: #0f172a; }
+        .kanban-card.search-match { border-color: #f59e0b !important; }
+        .bug-item.search-match { border-left: 3px solid #f59e0b; }
+
+        /* Undo/Redo toolbar */
+        .undo-redo-bar {
+            display: flex; align-items: center; gap: 2px; margin-left: 8px;
+        }
+        .undo-redo-btn {
+            background: #334155; border: 1px solid #475569; color: #e2e8f0;
+            padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1;
+        }
+        .undo-redo-btn:hover { background: #475569; }
+        .undo-redo-btn:disabled { opacity: 0.25; cursor: default; }
+        .undo-redo-btn:disabled:hover { background: #334155; }
+
+        /* Kanban Board */
+        .kanban-container {
+            display: none; position: fixed; top: 0; left: 320px; right: 0; bottom: 0;
+            background: #0f172a; z-index: 200; padding: 20px; overflow: auto;
+        }
+        .kanban-container.active { display: flex; flex-direction: column; }
+        .kanban-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0; }
+        .kanban-header h2 { color: #e2e8f0; margin: 0; }
+        .kanban-close { background: #334155; border: 1px solid #475569; color: #e2e8f0; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .kanban-close:hover { background: #475569; }
+        .kanban-filters { display: flex; gap: 8px; margin-bottom: 15px; flex-shrink: 0; flex-wrap: wrap; }
+        .kanban-board { display: flex; gap: 15px; flex: 1; min-height: 0; overflow-x: auto; }
+        .kanban-column {
+            flex: 1; min-width: 280px; background: #1e293b; border-radius: 8px;
+            padding: 12px; display: flex; flex-direction: column; max-height: 100%;
+            transition: min-width 0.25s, flex 0.25s, padding 0.25s;
+        }
+        .kanban-column.collapsed {
+            min-width: 48px; max-width: 48px; flex: 0 0 48px; padding: 12px 4px;
+            cursor: pointer; overflow: hidden;
+        }
+        .kanban-column.collapsed .kanban-cards { display: none; }
+        .kanban-column.collapsed .kanban-column-header h3 { writing-mode: vertical-lr; transform: rotate(180deg); font-size: 12px; white-space: nowrap; }
+        .kanban-column.collapsed .kanban-column-header .count { writing-mode: vertical-lr; transform: rotate(180deg); }
+        .kanban-column.collapsed .kanban-column-header .col-collapse-btn { display: none; }
+        .kanban-column-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid; }
+        .kanban-column-header.new { border-color: #ef4444; color: #ef4444; }
+        .kanban-column-header.review { border-color: #3b82f6; color: #3b82f6; }
+        .kanban-column-header.fixed { border-color: #22c55e; color: #22c55e; }
+        .kanban-column-header h3 { margin: 0; font-size: 14px; flex: 1; }
+        .kanban-column-header .count { font-size: 12px; opacity: 0.7; }
+        .col-collapse-btn { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; opacity: 0.5; padding: 2px 4px; }
+        .col-collapse-btn:hover { opacity: 1; }
+        .kanban-empty-msg { text-align: center; padding: 30px 16px; font-size: 12px; color: #64748b; line-height: 1.6; }
+        .kanban-empty-msg .empty-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+        .kanban-empty-msg .empty-title { font-size: 14px; color: #94a3b8; font-weight: 600; margin-bottom: 4px; }
+        .kanban-empty-msg .empty-subtitle { font-size: 11px; color: #475569; margin-top: 6px; }
+        .kanban-cards { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .kanban-card {
+            background: #0f172a; border-radius: 6px; padding: 10px; border: 1px solid transparent; border-left: 3px solid #334155;
+            cursor: grab; user-select: none; font-size: 12px; transition: border-color 0.15s;
+        }
+        .kanban-column[data-status="new"] .kanban-card:hover { border-color: #ef4444; }
+        .kanban-column[data-status="review"] .kanban-card:hover { border-color: #3b82f6; }
+        .kanban-column[data-status="fixed"] .kanban-card:hover { border-color: #22c55e; }
+        .kanban-card:active { cursor: grabbing; opacity: 0.8; }
+        .kanban-card.dragging { opacity: 0.4; }
+        .kanban-card .card-page { color: #64748b; font-size: 10px; margin-bottom: 4px; }
+        .kanban-card .card-text { color: #e2e8f0; line-height: 1.4; cursor: text; }
+        .kanban-card .card-text-edit { width: 100%; background: #0f172a; border: 1px solid #38bdf8; border-radius: 4px; color: #e2e8f0; padding: 6px; font-size: 12px; font-family: inherit; resize: vertical; min-height: 50px; }
+        .kanban-card .card-text-edit:focus { outline: none; border-color: #38bdf8; }
+        .kanban-card .card-device { font-size: 9px; color: #94a3b8; margin-top: 6px; }
+        .kanban-card .card-fix { font-size: 10px; color: #3b82f6; margin-top: 6px; background: #1e3a5f; padding: 4px 6px; border-radius: 3px; cursor: text; min-height: 20px; }
+        .kanban-card .card-fix.empty { color: #64748b; background: transparent; border: 1px dashed #334155; font-style: italic; }
+        .kanban-card .card-fix-edit { width: 100%; background: #0f172a; border: 1px solid #3b82f6; border-radius: 4px; color: #3b82f6; padding: 6px; font-size: 10px; font-family: inherit; resize: vertical; min-height: 40px; margin-top: 6px; }
+        .kanban-card .card-fix-edit:focus { outline: none; }
+        .kanban-card .card-images { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+        .kanban-card .card-images .card-img-wrap { position: relative; display: inline-block; }
+        .kanban-card .card-images img { width: 100px; height: 75px; object-fit: cover; border-radius: 4px; border: 1px solid #334155; cursor: pointer; }
+        .kanban-card .card-images img:hover { border-color: #38bdf8; }
+        .card-img-wrap .img-preview {
+            display: none; position: fixed; z-index: 300; pointer-events: none;
+            max-width: 500px; max-height: 400px; border-radius: 6px;
+            border: 2px solid #38bdf8; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            object-fit: contain; background: #0f172a;
+        }
+        .card-img-wrap:hover .img-preview { display: block; }
+        .kanban-card .card-images .card-img-del { position: absolute; top: 2px; right: 2px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: none; align-items: center; justify-content: center; line-height: 1; }
+        .kanban-card .card-images .card-img-wrap:hover .card-img-del { display: flex; }
+        .kanban-column[data-status="fixed"] .kanban-card .card-text {
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+            overflow: hidden; max-height: 4.2em;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card .card-images img {
+            width: 48px; height: 36px;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card .card-timeline,
+        .kanban-column[data-status="fixed"] .kanban-card .card-comments,
+        .kanban-column[data-status="fixed"] .kanban-card .card-paste-hint,
+        .kanban-column[data-status="fixed"] .kanban-card .card-device {
+            display: none;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card:hover .card-text {
+            display: block; -webkit-line-clamp: unset; max-height: none;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card:hover .card-timeline,
+        .kanban-column[data-status="fixed"] .kanban-card:hover .card-comments {
+            display: block;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card:hover .card-device {
+            display: flex;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card:hover .card-images img {
+            width: 100px; height: 75px;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card.search-match .card-text {
+            display: block; -webkit-line-clamp: unset; max-height: none;
+        }
+        .kanban-column[data-status="fixed"] .kanban-card.search-match .card-comments {
+            display: block;
+        }
+
+        .kanban-column.drag-over { background: #253347; }
+        .kanban-drop-indicator { height: 3px; background: #3b82f6; border-radius: 2px; margin: 4px 0; transition: opacity 0.15s; }
+        .card-tooltip {
+            display: none; margin-top: 6px; padding: 6px 8px;
+            background: #162032; border: 1px solid #334155; border-radius: 4px;
+            font-size: 10px; color: #94a3b8; white-space: pre-line; line-height: 1.5;
+        }
+        .card-tooltip::before { content: 'Test Steps'; display: block; font-weight: bold; color: #64748b; margin-bottom: 3px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .kanban-card:hover .card-tooltip { display: block; }
+        .card-tooltip.always-visible { display: block; border-color: #3b82f6; background: #1e293b; }
+
+        .card-timeline {
+            margin-top: 8px; padding: 6px 8px; background: #162032;
+            border: 1px solid #1e3a5f; border-radius: 4px; font-size: 10px;
+        }
+        .timeline-item {
+            display: flex; align-items: center; gap: 6px; padding: 2px 0; color: #94a3b8;
+        }
+        .timeline-icon { font-size: 10px; flex-shrink: 0; }
+        .timeline-label { flex: 1; }
+        .timeline-time { color: #64748b; font-size: 9px; white-space: nowrap; }
+
+        .card-comments { margin-top: 8px; }
+        .card-comment {
+            background: #1a1a2e; border-left: 2px solid #f59e0b; padding: 4px 8px;
+            margin-bottom: 4px; border-radius: 0 4px 4px 0; font-size: 10px;
+        }
+        .card-comment .comment-time { color: #64748b; font-size: 9px; }
+        .card-comment .comment-text { color: #fbbf24; margin-top: 2px; line-height: 1.4; }
+        .card-comment-input {
+            width: 100%; background: #0f172a; border: 1px solid #f59e0b40; border-radius: 4px;
+            color: #fbbf24; padding: 6px; font-size: 10px; font-family: inherit;
+            resize: vertical; min-height: 32px; margin-top: 4px;
+        }
+        .card-comment-input:focus { outline: none; border-color: #f59e0b; }
+        .card-comment-input::placeholder { color: #64748b; }
+
+        .kanban-card.card-selected { border: 1px solid #38bdf8; box-shadow: 0 0 8px #38bdf820; }
+
+        .card-actions { display: flex; justify-content: flex-end; gap: 4px; }
+        .card-action-btn {
+            border: none; border-radius: 3px; padding: 1px 10px; cursor: pointer;
+            font-size: 11px; line-height: 1; background: transparent;
+        }
+        .card-action-btn.reject { color: #ef4444; }
+        .card-action-btn.reject:hover { background: #3b1515; }
+        .card-action-btn.approve { color: #22c55e; }
+        .card-action-btn.approve:hover { background: #0f2918; }
+
+        /* Page Panel */
+        .page-panel {
+            display: none; position: fixed; bottom: 0; left: 320px; right: 0;
+            height: 250px; background: #1e293b; border-top: 2px solid #f59e0b;
+            z-index: 150; padding: 15px; overflow-y: auto;
+        }
+        .page-panel.active { display: block; }
+
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .page-header h3 { color: #f59e0b; margin: 0; }
+
+        /* Settings modal */
+        .settings-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 600;
+            align-items: center; justify-content: center;
+        }
+        .settings-overlay.active { display: flex; }
+        .settings-modal {
+            background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+            width: 700px; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .settings-modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid #334155;
+        }
+        .settings-modal-header h2 { margin: 0; font-size: 16px; color: #e2e8f0; }
+        .settings-modal-close { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 4px 8px; }
+        .settings-modal-close:hover { color: #e2e8f0; }
+        .settings-tabs {
+            display: flex; border-bottom: 1px solid #334155; padding: 0 20px;
+        }
+        .settings-tab {
+            padding: 10px 16px; font-size: 12px; color: #94a3b8; cursor: pointer;
+            border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none;
+        }
+        .settings-tab:hover { color: #e2e8f0; }
+        .settings-tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+        .settings-body { flex: 1; overflow-y: auto; padding: 20px; }
+        .settings-section { margin-bottom: 20px; }
+        .settings-section h3 { font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .settings-toggle-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 0; border-bottom: 1px solid #0f172a;
+        }
+        .settings-toggle-row label { font-size: 12px; color: #e2e8f0; }
+        .settings-toggle-row small { font-size: 10px; color: #64748b; display: block; margin-top: 2px; }
+        .settings-toggle {
+            width: 36px; height: 20px; background: #334155; border-radius: 10px; position: relative;
+            cursor: pointer; border: none; transition: background 0.2s;
+        }
+        .settings-toggle::after {
+            content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+            background: #94a3b8; border-radius: 50%; transition: left 0.2s, background 0.2s;
+        }
+        .settings-toggle.on { background: #6366f1; }
+        .settings-toggle.on::after { left: 18px; background: white; }
+
+        /* Load project overlay */
+        .load-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 700;
+            align-items: center; justify-content: center; flex-direction: column;
+        }
+        .load-overlay.active { display: flex; }
+        .load-box {
+            background: #1e293b; border: 2px dashed #475569; border-radius: 16px;
+            width: 500px; max-width: 90vw; padding: 40px; text-align: center;
+            transition: border-color 0.2s;
+        }
+        .load-box.drag-over { border-color: #38bdf8; background: #1e3a5f; }
+        .load-box h2 { color: #e2e8f0; margin-bottom: 12px; font-size: 20px; }
+        .load-box p { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
+        .load-box .load-btn {
+            display: inline-block; padding: 10px 24px; background: #38bdf8; color: #0f172a;
+            border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .load-box .load-btn:hover { background: #7dd3fc; }
+        .load-box .load-secondary {
+            display: inline-block; padding: 10px 24px; background: #334155; color: #e2e8f0;
+            border: 1px solid #475569; border-radius: 8px; font-size: 14px; cursor: pointer; margin-left: 8px;
+        }
+        .load-box .load-secondary:hover { background: #475569; }
+        .load-box .load-error { color: #f87171; font-size: 12px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <h1 id="projectTitle">Project Debug Map</h1>
+                <button onclick="openSettings()" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:4px 8px;" title="Settings">&#9881;</button>
+            </div>
+
+            <div class="text-size-controls">
+                <button class="text-size-btn" onclick="changeTextSize(-1)">A-</button>
+                <span class="text-size-label" id="textSizeLabel">100%</span>
+                <button class="text-size-btn" onclick="changeTextSize(1)">A+</button>
+                <button class="text-size-btn" onclick="resetTextSize()" style="font-size:10px;padding:4px 8px;">Reset</button>
+            </div>
+
+            <div class="sidebar-actions">
+                <button class="sidebar-btn bug-btn" onclick="showAllBugsPanel()">
+                    <span>&#128027;</span> Bug Reports
+                    <span id="bugCountNew" class="status-badge red" onclick="event.stopPropagation();showBugsByStatus('new')">0</span>
+                    <span id="bugCountReview" class="status-badge blue" onclick="event.stopPropagation();showBugsByStatus('review')">0</span>
+                    <span id="bugCountFixed" class="status-badge green" onclick="event.stopPropagation();showBugsByStatus('fixed')">0</span>
+                </button>
+                <button class="sidebar-btn" onclick="toggleKanban()" style="background:#1e3a5f;border-color:#3b82f6;">
+                    <span>&#128203;</span> Kanban Board
+                </button>
+                <button class="sidebar-btn page-btn" onclick="togglePagePanel()">
+                    <span>&#128221;</span> Page Requests
+                </button>
+                <div style="display:flex;gap:6px;">
+                    <button class="sidebar-btn" onclick="showLoadOverlay()" style="flex:1;background:#0f172a;border-color:#38bdf8;color:#38bdf8;font-size:11px;">Load Project</button>
+                    <button class="sidebar-btn" onclick="exportBugsJson()" style="flex:1;font-size:11px;">Export Bugs</button>
+                    <button class="sidebar-btn" onclick="importBugsJson()" style="flex:1;font-size:11px;">Import Bugs</button>
+                </div>
+            </div>
+
+            <div class="env-toggle" id="modeToggle">
+                <button class="env-btn active" data-mode="debugging" onclick="setMode('debugging')">&#128027;<br><small>Debugging</small></button>
+                <button class="env-btn" data-mode="testing" onclick="setMode('testing')">&#129514;<br><small>Testing</small></button>
+            </div>
+
+            <div class="env-toggle" id="envToggle"></div>
+
+            <div class="env-toggle" id="deviceToggle">
+                <button class="env-btn" data-device="desktop" onclick="setDevice('desktop')">&#128187;<br><small>Desktop</small></button>
+                <button class="env-btn" data-device="tablet" onclick="setDevice('tablet')">&#128250;<br><small>Tablet</small></button>
+                <button class="env-btn" data-device="mobile" onclick="setDevice('mobile')">&#128241;<br><small>Mobile</small></button>
+                <button class="env-btn active" data-device="all" onclick="setDevice('all')">&#128065;<br><small>All</small></button>
+            </div>
+
+            <input type="text" class="search-box" placeholder="Search..." id="searchBox" style="width:100%;padding:8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;margin-bottom:10px;">
+
+            <div id="nav-sections"></div>
+        </div>
+
+        <div class="main-content" style="position:relative;">
+            <div class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">&#9664;</div>
+            <div class="map-spacing-controls" id="mapSpacingControls">
+                <label>H <input type="range" id="hSpacing" min="2" max="600" value="5" oninput="updateMapSpacing()"><span id="hSpacingVal">5</span>px</label>
+                <label>V <input type="range" id="vSpacing" min="2" max="60" value="20" oninput="updateMapSpacing()"><span id="vSpacingVal">20</span>px</label>
+            </div>
+            <svg id="diagram"></svg>
+
+            <div class="bug-panel" id="bugPanel">
+                <div class="bug-header">
+                    <h3>&#128027; Bug Reports
+                        <span id="bugCount2New" class="status-badge red" onclick="showBugsByStatus('new')" style="cursor:pointer;">0</span>
+                        <span id="bugCount2Review" class="status-badge blue" onclick="showBugsByStatus('review')" style="cursor:pointer;">0</span>
+                        <span id="bugCount2Fixed" class="status-badge green" onclick="showBugsByStatus('fixed')" style="cursor:pointer;">0</span>
+                    </h3>
+                    <div class="bug-actions">
+                        <button class="bug-btn-small bug-btn-show" onclick="showAllBugs()">Show All</button>
+                        <button class="bug-btn-small bug-btn-add" onclick="addCurrentBug()">+ Add</button>
+                        <span class="device-add-btns" style="display:inline-flex;gap:2px;margin-left:2px;">
+                            <span class="device-add-btn" onclick="addCurrentBugForDevice('desktop')" title="Add desktop bug">&#128187;</span>
+                            <span class="device-add-btn" onclick="addCurrentBugForDevice('tablet')" title="Add tablet bug">&#128250;</span>
+                            <span class="device-add-btn" onclick="addCurrentBugForDevice('mobile')" title="Add mobile bug">&#128241;</span>
+                        </span>
+                        <span id="syncStatus" style="font-size:10px;color:#22c55e;padding:6px;">Local</span>
+                        <span class="undo-redo-bar">
+                            <button class="undo-redo-btn" id="undoBtn" onclick="undoBugs()" disabled title="Undo">&#8617;</button>
+                            <button class="undo-redo-btn" id="redoBtn" onclick="redoBugs()" disabled title="Redo">&#8618;</button>
+                        </span>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+                    <select id="bugFilterStatus" onchange="renderBugs()" style="padding:6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;">
+                        <option value="all">All Status</option>
+                        <option value="new">New</option>
+                        <option value="review">Review</option>
+                        <option value="fixed">Fixed</option>
+                    </select>
+                    <select id="bugFilterDevice" onchange="renderBugs()" style="padding:6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;">
+                        <option value="all">All Devices</option>
+                        <option value="desktop">Desktop</option>
+                        <option value="tablet">Tablet</option>
+                        <option value="mobile">Mobile</option>
+                    </select>
+                    <select id="bugFilterPage" onchange="renderBugs()" style="padding:6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;">
+                        <option value="all">All Pages</option>
+                    </select>
+                    <select id="bugFilterSort" onchange="renderBugs()" style="padding:6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;">
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="page">By Page</option>
+                        <option value="starred">&#9733; Starred First</option>
+                        <option value="flagged">&#9873; Flagged First</option>
+                    </select>
+                    <span style="display:inline-flex;border:1px solid #334155;border-radius:4px;overflow:hidden;"><button onclick="exportBugsJson()" title="Download bugs as JSON file" style="padding:6px 8px;background:#0f172a;border:none;color:#94a3b8;cursor:pointer;font-size:12px;">Export</button><button onclick="copyBugsJson()" title="Copy bugs JSON to clipboard" style="padding:6px 6px;background:#0f172a;border:none;border-left:1px solid #334155;color:#94a3b8;cursor:pointer;font-size:11px;">&#10697;</button></span>
+                </div>
+                <ul class="bug-list" id="bugList"></ul>
+            </div>
+
+            <div class="page-panel" id="pagePanel">
+                <div class="page-header">
+                    <h3>&#128221; Page Requests</h3>
+                    <button class="bug-btn-small bug-btn-add" onclick="addPage()">+ Add</button>
+                </div>
+                <ul class="bug-list" id="pageList"></ul>
+            </div>
+            <div class="bugpanel-toggle" id="bugpanelToggle" onclick="toggleBugPanelTab()">&#9650;</div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="settings-overlay" id="settingsOverlay" onclick="if(event.target===this)closeSettings()">
+        <div class="settings-modal">
+            <div class="settings-modal-header">
+                <h2>Settings</h2>
+                <button class="settings-modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="settings-tabs">
+                <button class="settings-tab active" onclick="switchSettingsTab(this,'tabGlobalSettings')">Global Settings</button>
+                <button class="settings-tab" onclick="switchSettingsTab(this,'tabShortcuts')">Shortcuts</button>
+            </div>
+            <div class="settings-body">
+                <div id="tabGlobalSettings">
+                    <div class="settings-section">
+                        <h3>Behavior</h3>
+                        <div class="settings-toggle-row">
+                            <div><label>Auto-open next review page</label><small>After moving a review card, auto-open the next bug's page</small></div>
+                            <button class="settings-toggle on" id="settingAutoOpen" onclick="toggleSetting(this,'autoOpenNext')"></button>
+                        </div>
+                        <div class="settings-toggle-row">
+                            <div><label>Confirm before delete</label><small>Ask before deleting bugs</small></div>
+                            <button class="settings-toggle" id="settingConfirmDelete" onclick="toggleSetting(this,'confirmDelete')"></button>
+                        </div>
+                    </div>
+                </div>
+                <div id="tabShortcuts" style="display:none;">
+                    <div class="settings-section">
+                        <h3>Keyboard Shortcuts</h3>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+                            <div style="color:#94a3b8;">Search bugs</div><div><kbd style="background:#334155;padding:2px 6px;border-radius:3px;border:1px solid #475569;font-size:10px;">Cmd+F</kbd></div>
+                            <div style="color:#94a3b8;">Undo</div><div><kbd style="background:#334155;padding:2px 6px;border-radius:3px;border:1px solid #475569;font-size:10px;">Cmd+Z</kbd></div>
+                            <div style="color:#94a3b8;">Redo</div><div><kbd style="background:#334155;padding:2px 6px;border-radius:3px;border:1px solid #475569;font-size:10px;">Cmd+Shift+Z</kbd></div>
+                            <div style="color:#94a3b8;">Next search match</div><div><kbd style="background:#334155;padding:2px 6px;border-radius:3px;border:1px solid #475569;font-size:10px;">Enter</kbd></div>
+                            <div style="color:#94a3b8;">Previous match</div><div><kbd style="background:#334155;padding:2px 6px;border-radius:3px;border:1px solid #475569;font-size:10px;">Shift+Enter</kbd></div>
+                            <div style="color:#94a3b8;">Close search</div><div><kbd style="background:#334155;padding:2px 6px;border-radius:3px;border:1px solid #475569;font-size:10px;">Esc</kbd></div>
+                            <div style="color:#94a3b8;">Move review to fixed</div><div><kbd style="background:#334155;padding:2px 6px;border-radius:3px;border:1px solid #475569;font-size:10px;">Enter</kbd> <span style="color:#475569;">(on selected card)</span></div>
+                            <div style="color:#94a3b8;">Copy bug ID</div><div><span style="color:#475569;">Click #number</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Project Overlay -->
+    <div class="load-overlay" id="loadOverlay" onclick="if(event.target===this)closeLoadOverlay()">
+        <div class="load-box" id="loadBox">
+            <h2>Load Project</h2>
+            <p>Drag and drop a project.json file here, or click to browse.</p>
+            <button class="load-btn" onclick="document.getElementById('fileInput').click()">Choose File</button>
+            <button class="load-secondary" onclick="loadDefaultProject()">Load Default (project.json)</button>
+            <input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleFileSelect(event)">
+            <div class="load-error" id="loadError"></div>
+        </div>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kanban-container" id="kanbanBoard">
+        <div class="kanban-header">
+            <h2 style="flex-shrink:0;">Kanban Board</h2>
+            <div style="display:flex;gap:8px;align-items:center;flex:1;min-width:0;margin-left:12px;">
+                <span class="search-inline" id="searchBar">
+                    <input type="text" id="searchInput" placeholder="Search bugs..." autocomplete="off" />
+                    <span class="search-count" id="searchCount"></span>
+                    <button id="searchPrev" onclick="searchNav(-1)" title="Previous (Shift+Enter)">&#9650;</button>
+                    <button id="searchNext" onclick="searchNav(1)" title="Next (Enter)">&#9660;</button>
+                </span>
+                <select id="kanbanFilterPage" onchange="renderKanban()" style="padding:6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;font-size:12px;">
+                    <option value="all">All Pages</option>
+                </select>
+                <select id="kanbanFilterDevice" onchange="renderKanban()" style="padding:6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;font-size:12px;">
+                    <option value="all">All Devices</option>
+                    <option value="desktop">Desktop</option>
+                    <option value="tablet">Tablet</option>
+                    <option value="mobile">Mobile</option>
+                </select>
+                <button id="kanbanStarFilter" onclick="toggleKanbanStarFilter()" title="Show starred only" style="padding:4px 6px;border-radius:4px;border:1px solid #475569;background:transparent;color:#92810050;font-size:12px;cursor:pointer;line-height:1;">&#9733;</button>
+                <button id="kanbanFlagFilter" onclick="toggleKanbanFlagFilter()" title="Show flagged only" style="padding:4px 6px;border-radius:4px;border:1px solid #475569;background:transparent;color:#8b3a5050;font-size:12px;cursor:pointer;line-height:1;">&#9873;</button>
+                <span style="display:inline-flex;border:1px solid #475569;border-radius:4px;overflow:hidden;"><button onclick="exportBugsJson()" title="Download bugs as JSON file" style="padding:4px 6px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:10px;line-height:1.2;">Export</button><button onclick="copyBugsJson()" title="Copy bugs JSON to clipboard" style="padding:4px 4px;background:transparent;border:none;border-left:1px solid #475569;color:#94a3b8;cursor:pointer;font-size:10px;line-height:1.2;">&#10697;</button></span>
+                <span class="undo-redo-bar">
+                    <button class="undo-redo-btn" id="undoBtnK" onclick="undoBugs()" disabled title="Undo">&#8617;</button>
+                    <button class="undo-redo-btn" id="redoBtnK" onclick="redoBugs()" disabled title="Redo">&#8618;</button>
+                </span>
+                <button class="kanban-close" onclick="toggleKanban()">Close</button>
+            </div>
+        </div>
+        <div class="kanban-board">
+            <div class="kanban-column" data-status="new" id="kanbanColNew" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event,'new')" onclick="expandColumn(this)">
+                <div class="kanban-column-header new"><button class="col-collapse-btn" onclick="event.stopPropagation();collapseColumn('new')" title="Collapse">&#9664;</button><h3>New</h3><span class="count" id="kanbanNewCount">0</span></div>
+                <div class="kanban-cards" id="kanbanNewCards"></div>
+            </div>
+            <div class="kanban-column" data-status="review" id="kanbanColReview" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event,'review')">
+                <div class="kanban-column-header review"><h3>Review</h3><span class="count" id="kanbanReviewCount">0</span><button id="reviewSortToggle" onclick="event.stopPropagation();toggleReviewSort()" title="Show accepted fixes first" style="margin-left:auto;padding:2px 6px;border-radius:4px;border:1px solid #475569;background:transparent;color:#94a3b8;font-size:10px;cursor:pointer;line-height:1.2;">&#128992;</button></div>
+                <div class="kanban-cards" id="kanbanReviewCards"></div>
+            </div>
+            <div class="kanban-column" data-status="fixed" id="kanbanColFixed" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event,'fixed')" onclick="expandColumn(this)">
+                <div class="kanban-column-header fixed"><h3>Fixed</h3><span class="count" id="kanbanFixedCount">0</span><button class="col-collapse-btn" onclick="event.stopPropagation();collapseColumn('fixed')" title="Collapse">&#9654;</button></div>
+                <div class="kanban-cards" id="kanbanFixedCards"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========================
+        // PROJECT CONFIG (dynamic)
+        // ========================
+        let projectConfig = null;
+        let pages = [];
+        let pageDescriptions = {};
+        let navigation = [];
+        let categories = {};
+        let envUrls = {};
+        let envLabels = {};
+
+        // Storage key prefix (changes per project to avoid collisions)
+        let storagePrefix = 'debugmap';
+
+        function getStorageKey(suffix) {
+            return storagePrefix + '-' + suffix;
+        }
+
+        function applyProjectConfig(config) {
+            projectConfig = config;
+            storagePrefix = 'debugmap-' + (config.name || 'default').toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+            // Set title
+            document.title = config.name + ' - Debug Map';
+            document.getElementById('projectTitle').textContent = config.name;
+
+            // Pages
+            pages = config.pages || [];
+            pageDescriptions = {};
+            pages.forEach(p => { if (p.description) pageDescriptions[p.path] = p.description; });
+
+            // Navigation
+            navigation = config.navigation || [];
+
+            // Categories (discover from pages)
+            categories = {};
+            pages.forEach(p => {
+                const cat = p.category || 'other';
+                if (!categories[cat]) categories[cat] = [];
+                categories[cat].push(p);
+            });
+
+            // Environments
+            envUrls = config.environments || {};
+            envLabels = config.environmentLabels || {};
+            const envKeys = Object.keys(envUrls);
+            currentEnv = envKeys[0] || '';
+
+            // Build env toggle buttons
+            const envToggle = document.getElementById('envToggle');
+            envToggle.innerHTML = '';
+            envKeys.forEach((key, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'env-btn' + (i === 0 ? ' active' : '');
+                btn.dataset.env = key;
+                btn.onclick = () => setEnv(key);
+                const label = envLabels[key] || key;
+                btn.innerHTML = key + '<br><small>' + label + '</small>';
+                envToggle.appendChild(btn);
+            });
+
+            // Build sidebar nav sections
+            const navContainer = document.getElementById('nav-sections');
+            navContainer.innerHTML = '';
+            Object.keys(categories).forEach(cat => {
+                const div = document.createElement('div');
+                div.id = 'nav-' + cat;
+                navContainer.appendChild(div);
+            });
+
+            // Load bugs for this project from localStorage
+            bugs = [];
+            try { bugs = JSON.parse(localStorage.getItem(getStorageKey('bugs'))) || []; } catch(e) {}
+            _prevSnapshot = JSON.stringify(bugs);
+
+            // Load reviewed pages
+            reviewedPages = {};
+            try { reviewedPages = JSON.parse(localStorage.getItem(getStorageKey('reviewed-pages'))) || {}; } catch(e) {}
+
+            // Load page requests
+            pageRequests = [];
+            try { pageRequests = JSON.parse(localStorage.getItem(getStorageKey('pages'))) || []; } catch(e) {}
+
+            // Re-render everything
+            populateSidebar();
+            drawDiagram();
+            renderBugs();
+            renderPageRequests();
+            updateBugCounts();
+
+            // Close load overlay if open
+            closeLoadOverlay();
+
+            // Restore kanban if it was open
+            if (localStorage.getItem(getStorageKey('kanban-open'))) {
+                setTimeout(() => toggleKanban(), 200);
+            }
+
+            // Save last loaded config
+            localStorage.setItem('debugmap-last-config', JSON.stringify(config));
+        }
+
+        // --- Load project overlay ---
+        function showLoadOverlay() {
+            document.getElementById('loadOverlay').classList.add('active');
+            document.getElementById('loadError').textContent = '';
+        }
+
+        function closeLoadOverlay() {
+            document.getElementById('loadOverlay').classList.remove('active');
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            readProjectFile(file);
+        }
+
+        function readProjectFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const config = JSON.parse(ev.target.result);
+                    if (!config.name || !config.pages) throw new Error('Invalid project.json: needs "name" and "pages" fields');
+                    applyProjectConfig(config);
+                } catch(err) {
+                    document.getElementById('loadError').textContent = 'Error: ' + err.message;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function loadDefaultProject() {
+            try {
+                const res = await fetch('project.json');
+                if (!res.ok) throw new Error('Could not load project.json (HTTP ' + res.status + ')');
+                const config = await res.json();
+                if (!config.name || !config.pages) throw new Error('Invalid project.json');
+                applyProjectConfig(config);
+            } catch(err) {
+                document.getElementById('loadError').textContent = 'Error: ' + err.message;
+            }
+        }
+
+        // Drag and drop on load box
+        const loadBox = document.getElementById('loadBox');
+        loadBox.addEventListener('dragover', (e) => { e.preventDefault(); loadBox.classList.add('drag-over'); });
+        loadBox.addEventListener('dragleave', () => { loadBox.classList.remove('drag-over'); });
+        loadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            loadBox.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) readProjectFile(file);
+        });
+
+        // --- Import bugs from JSON ---
+        function importBugsJson() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const imported = JSON.parse(ev.target.result);
+                        if (!Array.isArray(imported)) throw new Error('Expected an array of bugs');
+                        // Merge: add imported bugs, skip duplicates by id
+                        const existingIds = new Set(bugs.map(b => b.id));
+                        let added = 0;
+                        imported.forEach(b => {
+                            if (!existingIds.has(b.id)) {
+                                bugs.push(b);
+                                added++;
+                            }
+                        });
+                        saveBugs();
+                        renderBugs();
+                        renderKanban();
+                        refreshSidebar();
+                        const status = document.getElementById('syncStatus');
+                        status.textContent = 'Imported ' + added + ' bugs';
+                        status.style.color = '#38bdf8';
+                        setTimeout(() => { status.textContent = 'Local'; status.style.color = '#22c55e'; }, 2000);
+                    } catch(err) {
+                        alert('Import error: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // ========================
+        // CORE STATE
+        // ========================
+        let currentEnv = '';
+        let currentMode = 'debugging';
+        let currentDevice = 'all';
+        let bugs = [];
+        let currentBugPage = null;
+        let reviewedPages = {};
+        let pageRequests = [];
+
+        const deviceSizes = {
+            desktop: { width: 1550, height: 1000 },
+            tablet:  { width: 768,  height: 1024 },
+            mobile:  { width: 390,  height: 844 }
+        };
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('#modeToggle .env-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+            renderBugs();
+        }
+
+        function setEnv(env) {
+            currentEnv = env;
+            document.querySelectorAll('#envToggle .env-btn').forEach(b => b.classList.toggle('active', b.dataset.env === env));
+        }
+
+        function getUrl(path) {
+            const base = envUrls[currentEnv] || '';
+            return base + path.replace(/:[\w]+/g, '1');
+        }
+
+        function setDevice(device) {
+            currentDevice = device;
+            document.querySelectorAll('#deviceToggle .env-btn').forEach(b => b.classList.toggle('active', b.dataset.device === device));
+        }
+
+        let previewWindow = null;
+        let allWindows = { desktop: null, tablet: null, mobile: null };
+
+        function hasAllWindowsOpen() {
+            return allWindows.desktop && !allWindows.desktop.closed &&
+                   allWindows.tablet && !allWindows.tablet.closed &&
+                   allWindows.mobile && !allWindows.mobile.closed;
+        }
+
+        function openInNewWindow(url, keepFocus) {
+            if (currentDevice === 'all' || hasAllWindowsOpen()) {
+                openAllDeviceWindows(url, keepFocus);
+                return;
+            }
+            closeAllDeviceWindows();
+            const size = deviceSizes[currentDevice];
+            if (previewWindow && !previewWindow.closed) {
+                previewWindow.location.href = url;
+                previewWindow.resizeTo(size.width, size.height);
+            } else {
+                const left = window.screenX + window.outerWidth;
+                const top = window.screenY;
+                previewWindow = window.open(url, 'previewWindow', `width=${size.width},height=${size.height},left=${left},top=${top}`);
+            }
+            if (keepFocus) {
+                setTimeout(() => { window.focus(); }, 100);
+            }
+        }
+
+        function openAllDeviceWindows(url, keepFocus) {
+            if (previewWindow && !previewWindow.closed) previewWindow.close();
+            previewWindow = null;
+            const baseLeft = window.screenX + window.outerWidth;
+            const baseTop = window.screenY;
+            const ds = deviceSizes.desktop;
+            const ts = deviceSizes.tablet;
+            const ms = deviceSizes.mobile;
+            const gap = 10;
+            const layouts = [
+                { name: 'tablet',  w: ts.width, h: ts.height, x: baseLeft, y: baseTop + ds.height + gap },
+                { name: 'mobile',  w: ms.width, h: ms.height, x: baseLeft + ts.width + gap, y: baseTop + ds.height + gap },
+                { name: 'desktop', w: ds.width, h: ds.height, x: baseLeft, y: baseTop }
+            ];
+            layouts.forEach((l, i) => {
+                setTimeout(() => {
+                    allWindows[l.name] = window.open(url, 'preview_' + l.name, `width=${l.w},height=${l.h},left=${l.x},top=${l.y}`);
+                    try { allWindows[l.name].blur(); } catch(e) {}
+                }, i * 100);
+            });
+            [400, 600, 800].forEach(t => setTimeout(() => { window.focus(); }, t));
+        }
+
+        function closeAllDeviceWindows() {
+            Object.keys(allWindows).forEach(k => {
+                if (allWindows[k] && !allWindows[k].closed) allWindows[k].close();
+                allWindows[k] = null;
+            });
+        }
+
+        // ========================
+        // SIDEBAR
+        // ========================
+        let collapsedSections = {};
+        try { collapsedSections = JSON.parse(localStorage.getItem('debugmap-collapsed') || '{}'); } catch(e) {}
+
+        function toggleSection(sectionId) {
+            collapsedSections[sectionId] = !collapsedSections[sectionId];
+            localStorage.setItem('debugmap-collapsed', JSON.stringify(collapsedSections));
+            const content = document.getElementById(sectionId + '-items');
+            const arrow = document.getElementById(sectionId + '-arrow');
+            if (content) content.style.display = collapsedSections[sectionId] ? 'none' : 'block';
+            if (arrow) arrow.textContent = collapsedSections[sectionId] ? '\u25B8' : '\u25BE';
+        }
+
+        function isPageReviewed(path) {
+            return !!reviewedPages[path];
+        }
+
+        function togglePageReviewed(path) {
+            if (reviewedPages[path]) delete reviewedPages[path];
+            else reviewedPages[path] = new Date().toISOString();
+            localStorage.setItem(getStorageKey('reviewed-pages'), JSON.stringify(reviewedPages));
+            refreshSidebar();
+        }
+
+        function populateSidebar() {
+            const catKeys = Object.keys(categories);
+            const groups = catKeys.map(cat => ({
+                id: 'nav-' + cat,
+                label: cat.toUpperCase(),
+                pages: categories[cat]
+            }));
+
+            groups.forEach(g => {
+                const container = document.getElementById(g.id);
+                if (!container) return;
+                container.innerHTML = '';
+
+                const sectionBugs = bugs.filter(b => g.pages.some(p => p.path === b.page));
+                const sNewCount = sectionBugs.filter(b => b.status === 'new').length;
+                const sReviewCount = sectionBugs.filter(b => b.status === 'review').length;
+                const sFixedCount = sectionBugs.filter(b => b.status === 'fixed').length;
+
+                const isCollapsed = collapsedSections[g.id] || false;
+
+                const header = document.createElement('h2');
+                header.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;';
+                header.onclick = () => toggleSection(g.id);
+
+                const arrow = document.createElement('span');
+                arrow.id = g.id + '-arrow';
+                arrow.textContent = isCollapsed ? '\u25B8' : '\u25BE';
+                arrow.style.cssText = 'font-size:12px;width:12px;';
+                header.appendChild(arrow);
+
+                const labelSpan = document.createElement('span');
+                labelSpan.textContent = g.label;
+                labelSpan.style.flex = '1';
+                header.appendChild(labelSpan);
+
+                const unreviewedCount = g.pages.filter(p => !isPageReviewed(p.path)).length;
+                if (unreviewedCount > 0) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'color:#f59e0b;font-size:10px;padding:0 3px;';
+                    badge.textContent = '\u2691' + unreviewedCount;
+                    badge.title = unreviewedCount + ' pages not yet reviewed';
+                    header.appendChild(badge);
+                }
+
+                if (sNewCount > 0) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'background:#ef4444;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                    badge.textContent = sNewCount;
+                    badge.onclick = (e) => { e.stopPropagation(); showBugsForSection(g.pages, 'new'); };
+                    header.appendChild(badge);
+                }
+                if (sReviewCount > 0) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'background:#3b82f6;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                    badge.textContent = sReviewCount;
+                    badge.onclick = (e) => { e.stopPropagation(); showBugsForSection(g.pages, 'review'); };
+                    header.appendChild(badge);
+                }
+                if (sFixedCount > 0) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'background:#22c55e;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                    badge.textContent = sFixedCount;
+                    badge.onclick = (e) => { e.stopPropagation(); showBugsForSection(g.pages, 'fixed'); };
+                    header.appendChild(badge);
+                }
+
+                container.appendChild(header);
+
+                const itemsDiv = document.createElement('div');
+                itemsDiv.id = g.id + '-items';
+                itemsDiv.style.display = isCollapsed ? 'none' : 'block';
+
+                g.pages.forEach(page => {
+                    const pageBugs = bugs.filter(b => b.page === page.path);
+                    const newCount = pageBugs.filter(b => b.status === 'new').length;
+                    const reviewCount = pageBugs.filter(b => b.status === 'review').length;
+                    const fixedCount = pageBugs.filter(b => b.status === 'fixed').length;
+
+                    const a = document.createElement('a');
+                    a.className = 'nav-item';
+
+                    const bugLink = document.createElement('span');
+                    bugLink.className = 'bug-link';
+                    bugLink.textContent = '\u270E';
+                    bugLink.title = 'Add bug';
+                    bugLink.onclick = (e) => { e.stopPropagation(); addBugForPage(page.path); };
+                    a.appendChild(bugLink);
+
+                    const title = document.createElement('span');
+                    title.className = 'title';
+                    title.textContent = page.name;
+                    if (pageDescriptions[page.path]) title.title = pageDescriptions[page.path];
+                    title.onclick = () => selectPage(page.path);
+                    title.ondblclick = (e) => { e.stopPropagation(); selectPage(page.path); openInNewWindow(getUrl(page.path), true); };
+                    a.appendChild(title);
+
+                    if (newCount > 0 || reviewCount > 0 || fixedCount > 0) {
+                        const countSpan = document.createElement('span');
+                        countSpan.style.cssText = 'display:flex;gap:3px;margin-right:6px;';
+                        if (newCount > 0) {
+                            const badge = document.createElement('span');
+                            badge.style.cssText = 'background:#ef4444;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                            badge.textContent = newCount;
+                            badge.onclick = (e) => { e.stopPropagation(); showBugsForPage(page.path); };
+                            countSpan.appendChild(badge);
+                        }
+                        if (reviewCount > 0) {
+                            const badge = document.createElement('span');
+                            badge.style.cssText = 'background:#3b82f6;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                            badge.textContent = reviewCount;
+                            badge.onclick = (e) => { e.stopPropagation(); showBugsForPage(page.path); };
+                            countSpan.appendChild(badge);
+                        }
+                        if (fixedCount > 0) {
+                            const badge = document.createElement('span');
+                            badge.style.cssText = 'background:#22c55e;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                            badge.textContent = fixedCount;
+                            badge.onclick = (e) => { e.stopPropagation(); showBugsForPage(page.path); };
+                            countSpan.appendChild(badge);
+                        }
+                        a.appendChild(countSpan);
+                    }
+
+                    if (!isPageReviewed(page.path)) {
+                        const flag = document.createElement('span');
+                        flag.style.cssText = 'color:#f59e0b;font-size:11px;cursor:pointer;padding:0 3px;';
+                        flag.textContent = '\u2691';
+                        flag.title = 'Not yet reviewed - click to mark as reviewed';
+                        flag.onclick = (e) => { e.stopPropagation(); togglePageReviewed(page.path); };
+                        a.appendChild(flag);
+                    }
+
+                    const link = document.createElement('span');
+                    link.className = 'ext-link';
+                    link.textContent = '\u2197';
+                    link.onclick = (e) => { e.stopPropagation(); selectPage(page.path); openInNewWindow(getUrl(page.path)); };
+                    a.appendChild(link);
+
+                    itemsDiv.appendChild(a);
+                });
+
+                container.appendChild(itemsDiv);
+            });
+        }
+
+        function showBugsForSection(sectionPages, status) {
+            ensureMapView();
+            currentBugPage = null;
+            document.getElementById('bugFilterStatus').value = status;
+            const pageFilter = document.getElementById('bugFilterPage');
+            pageFilter.value = 'all';
+            const paths = new Set(sectionPages.map(p => p.path));
+            const count = bugs.filter(b => b.status === status && paths.has(b.page)).length;
+            openBugPanel(count);
+            renderBugs();
+            const items = document.querySelectorAll('.bug-item');
+            items.forEach(item => {
+                const pageTag = item.querySelector('.bug-page-tag');
+                if (pageTag && !paths.has(pageTag.textContent)) {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function refreshSidebar() {
+            const navContainer = document.getElementById('nav-sections');
+            // Rebuild section divs
+            navContainer.innerHTML = '';
+            Object.keys(categories).forEach(cat => {
+                const div = document.createElement('div');
+                div.id = 'nav-' + cat;
+                navContainer.appendChild(div);
+            });
+            populateSidebar();
+            if (selectedPage) {
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    const titleEl = item.querySelector('.title');
+                    if (titleEl) {
+                        const page = pages.find(p => p.name === titleEl.textContent);
+                        if (page && page.path === selectedPage) item.classList.add('active');
+                    }
+                });
+            }
+            if (typeof updateMapNodeColors === 'function') updateMapNodeColors();
+        }
+
+        // ========================
+        // D3 DIAGRAM
+        // ========================
+        let mapHSpacing = parseInt(localStorage.getItem('debugmap-hspacing')) || 5;
+        let mapVSpacing = parseInt(localStorage.getItem('debugmap-vspacing')) || 20;
+        let mapZoomBehavior = null;
+        let mapCurrentTransform = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const hSlider = document.getElementById('hSpacing');
+            const vSlider = document.getElementById('vSpacing');
+            if (hSlider) { hSlider.value = mapHSpacing; document.getElementById('hSpacingVal').textContent = mapHSpacing; }
+            if (vSlider) { vSlider.value = mapVSpacing; document.getElementById('vSpacingVal').textContent = mapVSpacing; }
+        });
+
+        function drawDiagram() {
+            const svg = d3.select('#diagram');
+            const nodeWidth = 120, nodeHeight = 36;
+
+            const catKeys = Object.keys(categories);
+            if (catKeys.length === 0) {
+                svg.selectAll('*').remove();
+                return;
+            }
+
+            const catX = {};
+            catKeys.forEach((cat, i) => { catX[cat] = 150 + i * (nodeWidth + mapHSpacing); });
+            const startY = 50;
+
+            let nodeData = [];
+            catKeys.forEach(cat => {
+                categories[cat].forEach((page, i) => {
+                    nodeData.push({ ...page, x: catX[cat], y: startY + i * (nodeHeight + mapVSpacing) });
+                });
+            });
+
+            const maxX = Math.max(...nodeData.map(n => n.x)) + nodeWidth + 100;
+            const maxY = Math.max(...nodeData.map(n => n.y)) + nodeHeight + 100;
+            svg.attr('viewBox', `0 0 ${maxX} ${maxY}`).style('width', '100%').style('height', '100%');
+
+            if (!mapZoomBehavior) {
+                mapZoomBehavior = d3.zoom()
+                    .scaleExtent([0.3, 3])
+                    .on('zoom', (event) => {
+                        mapCurrentTransform = event.transform;
+                        svg.select('g').attr('transform', event.transform);
+                    });
+                svg.call(mapZoomBehavior);
+            }
+
+            svg.selectAll('g').remove();
+            const g = svg.append('g');
+            if (mapCurrentTransform) g.attr('transform', mapCurrentTransform);
+
+            const labels = catKeys.map(cat => ({ x: catX[cat], y: 30, text: cat.toUpperCase() }));
+
+            g.selectAll('.cat-label').data(labels).enter().append('text')
+                .attr('x', d => d.x).attr('y', d => d.y)
+                .attr('fill', '#94a3b8').attr('font-size', '12px').attr('font-weight', 'bold')
+                .attr('text-decoration', 'underline')
+                .text(d => d.text);
+
+            const linkData = navigation.map(([from, to]) => ({
+                source: nodeData.find(n => n.path === from),
+                target: nodeData.find(n => n.path === to)
+            })).filter(l => l.source && l.target);
+
+            g.selectAll('.link').data(linkData).enter().append('path')
+                .attr('class', 'link')
+                .attr('d', d => `M${d.source.x+nodeWidth},${d.source.y+nodeHeight/2} L${d.target.x},${d.target.y+nodeHeight/2}`)
+                .on('mouseenter', function(e, d) {
+                    d3.select(this).attr('stroke', '#f59e0b').attr('stroke-width', 3);
+                    d3.selectAll('.node').each(function(nd) {
+                        if (nd.path === d.source.path || nd.path === d.target.path) {
+                            d3.select(this).select('rect').attr('stroke', '#f59e0b').attr('stroke-width', 3);
+                        }
+                    });
+                })
+                .on('mouseleave', function(e, d) {
+                    d3.select(this).attr('stroke', null).attr('stroke-width', null);
+                    d3.selectAll('.node').each(function(nd) {
+                        const el = d3.select(this);
+                        if (el.classed('selected')) {
+                            el.select('rect').attr('stroke', '#38bdf8').attr('stroke-width', 3);
+                        } else if (el.classed('has-new')) {
+                            el.select('rect').attr('stroke', '#e87040').attr('stroke-width', 2);
+                        } else if (el.classed('has-review')) {
+                            el.select('rect').attr('stroke', '#3b82f6').attr('stroke-width', 2);
+                        } else {
+                            el.select('rect').attr('stroke', '#2d8a4e').attr('stroke-width', 1.5);
+                        }
+                    });
+                });
+
+            const nodes = g.selectAll('.node').data(nodeData).enter().append('g')
+                .attr('class', d => {
+                    let cls = 'node';
+                    const pageBugs = bugs.filter(b => b.page === d.path);
+                    if (pageBugs.some(b => b.status === 'new')) cls += ' has-new';
+                    else if (pageBugs.some(b => b.status === 'review')) cls += ' has-review';
+                    if (d.path === selectedPage) cls += ' selected';
+                    return cls;
+                })
+                .attr('data-path', d => d.path)
+                .attr('transform', d => `translate(${d.x},${d.y})`)
+                .on('click', (e, d) => { selectPage(d.path); openInNewWindow(getUrl(d.path), true); });
+
+            nodes.append('rect').attr('width', nodeWidth).attr('height', nodeHeight + 2);
+            nodes.append('text').attr('x', nodeWidth/2).attr('y', nodeHeight/2+5).attr('text-anchor', 'middle').text(d => d.name);
+            nodes.append('title').text(d => pageDescriptions[d.path] || d.path);
+            nodes.each(function(d) {
+                const pageBugs = bugs.filter(b => b.page === d.path);
+                if (pageBugs.some(b => b.starred)) {
+                    d3.select(this).append('text').attr('class', 'star-icon').attr('x', 4).attr('y', 12).attr('fill', '#facc15').text('\u2605');
+                }
+                if (pageBugs.some(b => b.flagged)) {
+                    d3.select(this).append('text').attr('class', 'flag-icon').attr('x', 110).attr('y', 12).attr('fill', '#f87171').text('\u2691');
+                }
+            });
+
+            if (!mapCurrentTransform) {
+                fitMapToView(svg, maxX, maxY);
+            }
+        }
+
+        function fitMapToView(svg, contentW, contentH) {
+            const svgEl = svg.node();
+            const rect = svgEl.getBoundingClientRect();
+            const viewW = rect.width;
+            const viewH = rect.height;
+            if (!viewW || !viewH) return;
+            const pad = 30;
+            const scaleX = (viewW - pad * 2) / contentW;
+            const scaleY = (viewH - pad * 2) / contentH;
+            const scale = Math.min(scaleX, scaleY, 2);
+            const tx = (viewW - contentW * scale) / 2;
+            const ty = (viewH - contentH * scale) / 2;
+            const transform = d3.zoomIdentity.translate(tx, ty).scale(scale);
+            mapCurrentTransform = transform;
+            svg.select('g').attr('transform', transform);
+            if (mapZoomBehavior) svg.call(mapZoomBehavior.transform, transform);
+        }
+
+        function updateMapSpacing() {
+            mapHSpacing = parseInt(document.getElementById('hSpacing').value);
+            mapVSpacing = parseInt(document.getElementById('vSpacing').value);
+            document.getElementById('hSpacingVal').textContent = mapHSpacing;
+            document.getElementById('vSpacingVal').textContent = mapVSpacing;
+            localStorage.setItem('debugmap-hspacing', mapHSpacing);
+            localStorage.setItem('debugmap-vspacing', mapVSpacing);
+            drawDiagram();
+        }
+
+        function updateMapNodeColors() {
+            d3.selectAll('.node').each(function(d) {
+                const pageBugs = bugs.filter(b => b.page === d.path);
+                const hasNew = pageBugs.some(b => b.status === 'new');
+                const hasReview = pageBugs.some(b => b.status === 'review');
+                const hasStarred = pageBugs.some(b => b.starred);
+                const hasFlagged = pageBugs.some(b => b.flagged);
+                const node = d3.select(this);
+                node.classed('has-new', hasNew).classed('has-review', !hasNew && hasReview);
+                node.selectAll('.star-icon, .flag-icon').remove();
+                if (hasStarred) {
+                    node.append('text').attr('class', 'star-icon').attr('x', 4).attr('y', 12).attr('fill', '#facc15').text('\u2605');
+                }
+                if (hasFlagged) {
+                    node.append('text').attr('class', 'flag-icon').attr('x', 110).attr('y', 12).attr('fill', '#f87171').text('\u2691');
+                }
+            });
+        }
+
+        // ========================
+        // PAGE SELECTION
+        // ========================
+        let selectedPage = null;
+
+        function selectPage(path) {
+            selectedPage = path;
+            const board = document.getElementById('kanbanBoard');
+            if (board.classList.contains('active')) {
+                board.classList.remove('active');
+                if (sidebarCollapsed) toggleSidebar();
+            }
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => {
+                const titleEl = item.querySelector('.title');
+                if (titleEl) {
+                    const page = pages.find(p => p.name === titleEl.textContent);
+                    if (page && page.path === path) item.classList.add('active');
+                }
+            });
+            d3.selectAll('.node').classed('selected', false);
+            d3.selectAll('.node').each(function(d) {
+                if (d.path === path) d3.select(this).classed('selected', true);
+            });
+            showBugsForPage(path);
+        }
+
+        // ========================
+        // SIDEBAR & PANEL COLLAPSE
+        // ========================
+        let sidebarCollapsed = false;
+
+        function toggleSidebar() {
+            sidebarCollapsed = !sidebarCollapsed;
+            const sidebar = document.querySelector('.sidebar');
+            const toggle = document.getElementById('sidebarToggle');
+            const bugPanel = document.getElementById('bugPanel');
+            const pagePanel = document.getElementById('pagePanel');
+            const kanban = document.getElementById('kanbanBoard');
+            sidebar.classList.toggle('collapsed', sidebarCollapsed);
+            toggle.textContent = sidebarCollapsed ? '\u25B6' : '\u25C0';
+            const leftPos = sidebarCollapsed ? '0' : '320px';
+            bugPanel.style.left = leftPos;
+            pagePanel.style.left = leftPos;
+            kanban.style.left = leftPos;
+        }
+
+        function toggleBugPanelTab() {
+            const panel = document.getElementById('bugPanel');
+            if (panel.classList.contains('active')) {
+                closeBugPanel();
+            } else {
+                currentBugPage = selectedPage || null;
+                const count = currentBugPage ? bugs.filter(b => b.page === currentBugPage).length : bugs.length;
+                openBugPanel(count);
+                renderBugs();
+            }
+        }
+
+        // ========================
+        // UNDO / REDO
+        // ========================
+        const _undoStack = [];
+        const _redoStack = [];
+        const MAX_UNDO = 50;
+        let _skipUndoPush = false;
+        let _prevSnapshot = null;
+
+        function pushUndo() {
+            if (_skipUndoPush) return;
+            if (!_prevSnapshot) return;
+            if (_undoStack.length && _undoStack[_undoStack.length - 1] === _prevSnapshot) return;
+            _undoStack.push(_prevSnapshot);
+            if (_undoStack.length > MAX_UNDO) _undoStack.shift();
+            _redoStack.length = 0;
+            updateUndoRedoButtons();
+        }
+
+        function undoBugs() {
+            if (!_undoStack.length) return;
+            _redoStack.push(JSON.stringify(bugs));
+            bugs = JSON.parse(_undoStack.pop());
+            _skipUndoPush = true;
+            saveBugs();
+            _skipUndoPush = false;
+            renderBugs();
+            renderKanban();
+            updateUndoRedoButtons();
+        }
+
+        function redoBugs() {
+            if (!_redoStack.length) return;
+            _undoStack.push(JSON.stringify(bugs));
+            bugs = JSON.parse(_redoStack.pop());
+            _skipUndoPush = true;
+            saveBugs();
+            _skipUndoPush = false;
+            renderBugs();
+            renderKanban();
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            ['undoBtn', 'undoBtnK'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = _undoStack.length === 0;
+            });
+            ['redoBtn', 'redoBtnK'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = _redoStack.length === 0;
+            });
+        }
+
+        // ========================
+        // STAR & FLAG
+        // ========================
+        function toggleStar(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            bug.starred = !bug.starred;
+            saveBugs();
+            renderKanban();
+            renderBugs();
+            updateMapNodeColors();
+        }
+        function toggleFlag(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            bug.flagged = !bug.flagged;
+            saveBugs();
+            renderKanban();
+            renderBugs();
+            updateMapNodeColors();
+        }
+
+        let _kanbanStarFilter = false;
+        let _kanbanFlagFilter = false;
+        function toggleKanbanStarFilter() {
+            _kanbanStarFilter = !_kanbanStarFilter;
+            if (_kanbanStarFilter) _kanbanFlagFilter = false;
+            updateStarFlagButtons();
+            renderKanban();
+        }
+        function toggleKanbanFlagFilter() {
+            _kanbanFlagFilter = !_kanbanFlagFilter;
+            if (_kanbanFlagFilter) _kanbanStarFilter = false;
+            updateStarFlagButtons();
+            renderKanban();
+        }
+        function updateStarFlagButtons() {
+            const starBtn = document.getElementById('kanbanStarFilter');
+            const flagBtn = document.getElementById('kanbanFlagFilter');
+            if (starBtn) {
+                starBtn.style.background = _kanbanStarFilter ? '#d4a82a' : 'transparent';
+                starBtn.style.color = _kanbanStarFilter ? '#fff' : '#92810050';
+                starBtn.style.borderColor = _kanbanStarFilter ? '#d4a82a' : '#475569';
+            }
+            if (flagBtn) {
+                flagBtn.style.background = _kanbanFlagFilter ? '#8b2252' : 'transparent';
+                flagBtn.style.color = _kanbanFlagFilter ? '#fff' : '#8b3a5050';
+                flagBtn.style.borderColor = _kanbanFlagFilter ? '#8b2252' : '#475569';
+            }
+        }
+
+        // ========================
+        // EXPORT / COPY BUGS
+        // ========================
+        function exportBugsJson() {
+            const data = JSON.stringify(bugs, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const projectName = (projectConfig?.name || 'bugs').toLowerCase().replace(/[^a-z0-9]/g, '-');
+            a.download = projectName + '-bugs-' + new Date().toISOString().slice(0, 10) + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        function copyBugsJson() {
+            const data = JSON.stringify(bugs, null, 2);
+            navigator.clipboard.writeText(data).then(() => {
+                const status = document.getElementById('syncStatus');
+                if (status) { status.textContent = 'Copied!'; status.style.color = '#38bdf8'; setTimeout(() => { status.textContent = 'Local'; status.style.color = '#22c55e'; }, 1500); }
+            });
+        }
+
+        // ========================
+        // REVIEW SORT
+        // ========================
+        let _reviewSortAcceptedFirst = false;
+        function toggleReviewSort() {
+            _reviewSortAcceptedFirst = !_reviewSortAcceptedFirst;
+            const btn = document.getElementById('reviewSortToggle');
+            if (btn) {
+                btn.style.background = _reviewSortAcceptedFirst ? '#f97316' : 'transparent';
+                btn.style.color = _reviewSortAcceptedFirst ? '#fff' : '#94a3b8';
+                btn.style.borderColor = _reviewSortAcceptedFirst ? '#f97316' : '#475569';
+            }
+            renderKanban();
+        }
+
+        // ========================
+        // SEARCH SYSTEM
+        // ========================
+        let _searchMatches = [];
+        let _searchIndex = -1;
+        let _searchQuery = '';
+
+        function openSearch() {
+            const kb = document.getElementById('kanbanBoard');
+            if (!kb.classList.contains('active')) toggleKanban();
+            const input = document.getElementById('searchInput');
+            input.focus();
+            input.select();
+        }
+
+        function closeSearch() {
+            _searchQuery = '';
+            _searchMatches = [];
+            _searchIndex = -1;
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchCount').textContent = '';
+            clearSearchHighlights();
+        }
+
+        function clearSearchHighlights() {
+            document.querySelectorAll('mark.search-hit').forEach(m => {
+                const parent = m.parentNode;
+                parent.replaceChild(document.createTextNode(m.textContent), m);
+                parent.normalize();
+            });
+            document.querySelectorAll('.search-match').forEach(el => el.classList.remove('search-match'));
+        }
+
+        function runSearch() {
+            const input = document.getElementById('searchInput');
+            const query = input.value.trim().toLowerCase();
+            clearSearchHighlights();
+            _searchMatches = [];
+            _searchIndex = -1;
+
+            if (!query) {
+                document.getElementById('searchCount').textContent = '';
+                document.getElementById('searchPrev').disabled = true;
+                document.getElementById('searchNext').disabled = true;
+                return;
+            }
+            _searchQuery = query;
+
+            const isKanban = document.getElementById('kanbanBoard').classList.contains('active');
+            if (isKanban) searchInKanban(query);
+            else searchInBugPanel(query);
+
+            const count = _searchMatches.length;
+            document.getElementById('searchCount').textContent = count ? '0 / ' + count : 'No results';
+            document.getElementById('searchPrev').disabled = count === 0;
+            document.getElementById('searchNext').disabled = count === 0;
+
+            if (count > 0) {
+                _searchIndex = -1;
+                searchNav(1);
+            }
+        }
+
+        function highlightText(element, query) {
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+            const textNodes = [];
+            while (walker.nextNode()) textNodes.push(walker.currentNode);
+            let matchCount = 0;
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                const lower = text.toLowerCase();
+                const idx = lower.indexOf(query);
+                if (idx === -1) return;
+                const frag = document.createDocumentFragment();
+                let lastIdx = 0;
+                let pos = idx;
+                while (pos !== -1) {
+                    if (pos > lastIdx) frag.appendChild(document.createTextNode(text.substring(lastIdx, pos)));
+                    const mark = document.createElement('mark');
+                    mark.className = 'search-hit';
+                    mark.textContent = text.substring(pos, pos + query.length);
+                    mark.dataset.matchIndex = _searchMatches.length + matchCount;
+                    frag.appendChild(mark);
+                    matchCount++;
+                    lastIdx = pos + query.length;
+                    pos = lower.indexOf(query, lastIdx);
+                }
+                if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.substring(lastIdx)));
+                node.parentNode.replaceChild(frag, node);
+            });
+            return matchCount;
+        }
+
+        function searchInKanban(query) {
+            document.querySelectorAll('.kanban-card[data-bug-id]').forEach(card => {
+                const bugId = parseInt(card.dataset.bugId);
+                const targets = card.querySelectorAll('.card-text, .card-fix, .card-page span, .card-comment .comment-text, .card-tooltip, .bug-fix-comment');
+                let cardMatchCount = 0;
+                targets.forEach(el => { cardMatchCount += highlightText(el, query); });
+                const bug = bugs.find(b => b.id === bugId);
+                if (cardMatchCount > 0 || (bug && (bug.text || '').toLowerCase().includes(query)) || (bug && (bug.page || '').toLowerCase().includes(query))) {
+                    card.classList.add('search-match');
+                }
+                card.querySelectorAll('mark.search-hit').forEach(m => {
+                    _searchMatches.push({ bugId, element: m, card });
+                });
+            });
+        }
+
+        function searchInBugPanel(query) {
+            document.querySelectorAll('.bug-item[data-id]').forEach(item => {
+                const bugId = parseInt(item.dataset.id);
+                const targets = item.querySelectorAll('.bug-page-tag, .bug-fix-comment, .bug-test-steps');
+                let itemMatchCount = 0;
+                targets.forEach(el => { itemMatchCount += highlightText(el, query); });
+                const ta = item.querySelector('.bug-text');
+                if (ta && ta.value.toLowerCase().includes(query)) {
+                    item.classList.add('search-match');
+                    if (itemMatchCount === 0) {
+                        _searchMatches.push({ bugId, element: item, card: item, isTextarea: true });
+                    }
+                }
+                if (itemMatchCount > 0) item.classList.add('search-match');
+                item.querySelectorAll('mark.search-hit').forEach(m => {
+                    _searchMatches.push({ bugId, element: m, card: item });
+                });
+            });
+        }
+
+        function searchNav(direction) {
+            if (_searchMatches.length === 0) return;
+            if (_searchIndex >= 0 && _searchIndex < _searchMatches.length) {
+                _searchMatches[_searchIndex].element.classList.remove('current');
+            }
+            _searchIndex += direction;
+            if (_searchIndex >= _searchMatches.length) _searchIndex = 0;
+            if (_searchIndex < 0) _searchIndex = _searchMatches.length - 1;
+            const match = _searchMatches[_searchIndex];
+            match.element.classList.add('current');
+            match.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (match.card) {
+                const col = match.card.closest('.kanban-cards');
+                if (col) {
+                    const cardTop = match.card.offsetTop - col.offsetTop;
+                    col.scrollTop = Math.max(0, cardTop - 40);
+                }
+            }
+            document.getElementById('searchCount').textContent = (_searchIndex + 1) + ' / ' + _searchMatches.length;
+        }
+
+        function reapplySearchHighlights() {
+            const query = document.getElementById('searchInput')?.value.trim().toLowerCase();
+            if (!query) return;
+            setTimeout(() => runSearch(), 20);
+        }
+
+        // ========================
+        // KEYBOARD SHORTCUTS
+        // ========================
+        document.addEventListener('keydown', function(e) {
+            const isMac = navigator.platform.indexOf('Mac') > -1;
+            const mod = isMac ? e.metaKey : e.ctrlKey;
+
+            if (mod && e.key === 'f') {
+                e.preventDefault();
+                e.stopPropagation();
+                openSearch();
+                return;
+            }
+
+            if (mod && !e.shiftKey && e.key === 'z') {
+                const tag = document.activeElement?.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                e.preventDefault();
+                undoBugs();
+                return;
+            }
+
+            if (mod && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+                const tag = document.activeElement?.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                e.preventDefault();
+                redoBugs();
+                return;
+            }
+
+            if (mod && e.key === 'c') {
+                const sel = window.getSelection();
+                if (sel && sel.toString().trim()) return;
+                const tag = document.activeElement?.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                if (selectedKanbanBugId) {
+                    const bug = bugs.find(b => b.id === selectedKanbanBugId);
+                    if (bug) {
+                        e.preventDefault();
+                        const lines = [];
+                        lines.push('# Bug ' + shortId(bug));
+                        lines.push('');
+                        lines.push('**Page:** ' + (bug.page || 'N/A'));
+                        lines.push('**URL:** ' + getUrl(bug.page || '/'));
+                        lines.push('**Status:** ' + (bug.status || 'new'));
+                        if (bug.devices) lines.push('**Devices:** ' + (Array.isArray(bug.devices) ? bug.devices.join(', ') : bug.devices));
+                        lines.push('');
+                        lines.push('## Description');
+                        lines.push(bug.text || '(no description)');
+                        if (bug.fix) { lines.push(''); lines.push('## Proposed Fix'); lines.push(bug.fix); }
+                        const text = lines.join('\n');
+                        navigator.clipboard.writeText(text).then(() => {
+                            const card = document.querySelector('.kanban-card[data-bug-id="' + bug.id + '"]');
+                            if (card) { card.style.outline = '2px solid #22c55e'; setTimeout(() => { card.style.outline = ''; }, 600); }
+                        });
+                        return;
+                    }
+                }
+            }
+
+            if (e.key === 'Escape') {
+                const input = document.getElementById('searchInput');
+                if (input && (input.value || document.activeElement === input)) {
+                    e.preventDefault();
+                    closeSearch();
+                    input.blur();
+                    return;
+                }
+            }
+        }, true);
+
+        document.getElementById('searchInput').addEventListener('input', function() { runSearch(); });
+        document.getElementById('searchInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); searchNav(e.shiftKey ? -1 : 1); }
+            if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+        });
+
+        // Panel resize
+        const bugPanel = document.getElementById('bugPanel');
+        let isResizing = false, startY, startHeight;
+        bugPanel.addEventListener('mousedown', e => {
+            if (e.target === bugPanel || e.target.classList.contains('bug-header')) {
+                isResizing = true;
+                startY = e.clientY;
+                startHeight = bugPanel.offsetHeight;
+                document.body.style.cursor = 'ns-resize';
+            }
+        });
+        document.addEventListener('mousemove', e => {
+            if (isResizing) {
+                const newHeight = startHeight - (e.clientY - startY);
+                if (newHeight > 100 && newHeight < window.innerHeight * 0.8) {
+                    bugPanel.style.height = newHeight + 'px';
+                }
+            }
+        });
+        document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = ''; });
+
+        // ========================
+        // BUG SYSTEM (localStorage only)
+        // ========================
+        function saveBugs() {
+            pushUndo();
+            bugs = bugs.filter(b => {
+                if (b.text && b.text.trim()) return true;
+                const age = Date.now() - b.id;
+                return age < 60000;
+            });
+            localStorage.setItem(getStorageKey('bugs'), JSON.stringify(bugs));
+            _prevSnapshot = JSON.stringify(bugs);
+            const status = document.getElementById('syncStatus');
+            if (status) { status.textContent = 'Saved'; status.style.color = '#22c55e'; }
+        }
+
+        function toggleBugPanel() {
+            const panel = document.getElementById('bugPanel');
+            panel.classList.toggle('active');
+            if (panel.classList.contains('active')) panel.style.height = '50vh';
+            document.getElementById('pagePanel').classList.remove('active');
+            renderBugs();
+        }
+
+        function togglePagePanel() {
+            document.getElementById('pagePanel').classList.toggle('active');
+            document.getElementById('bugPanel').classList.remove('active');
+        }
+
+        function defaultDevices() {
+            return currentDevice === 'all' ? ['desktop','tablet','mobile'] : [currentDevice];
+        }
+
+        function addBugForPage(path) {
+            currentBugPage = path;
+            bugs.push({ id: Date.now(), num: nextBugNum(), page: path, text: '', status: 'new', devices: defaultDevices(), created: new Date().toISOString() });
+            saveBugs();
+            const count = bugs.filter(b => b.page === path).length;
+            openBugPanel(count);
+            renderBugs();
+        }
+
+        function addCurrentBug() {
+            if (!currentBugPage) currentBugPage = pages[0]?.path || '/';
+            bugs.push({ id: Date.now(), num: nextBugNum(), page: currentBugPage, text: '', status: 'new', devices: defaultDevices(), created: new Date().toISOString() });
+            saveBugs();
+            renderBugs();
+            setTimeout(() => {
+                const textareas = document.querySelectorAll('.bug-text[data-bug-id]');
+                for (let i = 0; i < textareas.length; i++) {
+                    if (!textareas[i].value.trim()) { textareas[i].focus(); break; }
+                }
+            }, 50);
+        }
+
+        function addCurrentBugForDevice(device) {
+            if (!currentBugPage) currentBugPage = pages[0]?.path || '/';
+            bugs.push({ id: Date.now(), num: nextBugNum(), page: currentBugPage, text: '', status: 'new', devices: [device], created: new Date().toISOString() });
+            saveBugs();
+            renderBugs();
+            setTimeout(() => {
+                const textareas = document.querySelectorAll('.bug-text[data-bug-id]');
+                for (let i = 0; i < textareas.length; i++) {
+                    if (!textareas[i].value.trim()) { textareas[i].focus(); break; }
+                }
+            }, 50);
+        }
+
+        function showAllBugs() {
+            currentBugPage = null;
+            renderBugs();
+        }
+
+        function ensureMapView() {
+            const board = document.getElementById('kanbanBoard');
+            if (board.classList.contains('active')) {
+                board.classList.remove('active');
+                if (sidebarCollapsed) toggleSidebar();
+            }
+        }
+
+        function smartPanelHeight(bugCount) {
+            const perBug = 80;
+            const overhead = 120 + 80;
+            const needed = overhead + Math.max(bugCount, 1) * perBug;
+            const maxPx = window.innerHeight * 0.7;
+            return Math.min(needed, maxPx) + 'px';
+        }
+
+        function openBugPanel(bugCount) {
+            const panel = document.getElementById('bugPanel');
+            const toggle = document.getElementById('bugpanelToggle');
+            panel.classList.add('active');
+            panel.style.height = smartPanelHeight(bugCount);
+            toggle.textContent = '\u25BC'; toggle.classList.add('panel-open');
+            document.getElementById('pagePanel').classList.remove('active');
+        }
+
+        function closeBugPanel() {
+            cleanupEmptyBugs();
+            const panel = document.getElementById('bugPanel');
+            const toggle = document.getElementById('bugpanelToggle');
+            panel.classList.remove('active');
+            toggle.textContent = '\u25B2'; toggle.classList.remove('panel-open');
+        }
+
+        function showAllBugsPanel() {
+            const panel = document.getElementById('bugPanel');
+            if (panel.classList.contains('active') && !currentBugPage) {
+                closeBugPanel();
+                return;
+            }
+            ensureMapView();
+            cleanupEmptyBugs();
+            currentBugPage = null;
+            document.getElementById('bugFilterStatus').value = 'all';
+            openBugPanel(bugs.length);
+            renderBugs();
+        }
+
+        function showBugsForPage(path) {
+            ensureMapView();
+            cleanupEmptyBugs();
+            currentBugPage = path;
+            if (currentMode === 'debugging') {
+                const hasEmpty = bugs.some(b => b.page === path && (!b.text || !b.text.trim()));
+                if (!hasEmpty) {
+                    bugs.push({ id: Date.now(), num: nextBugNum(), page: path, text: '', status: 'new', devices: defaultDevices(), created: new Date().toISOString() });
+                }
+            }
+            const count = bugs.filter(b => b.page === path).length;
+            openBugPanel(count);
+            renderBugs();
+            if (currentMode === 'debugging') {
+                [500, 900].forEach(t => setTimeout(() => {
+                    window.focus();
+                    const textareas = document.querySelectorAll('.bug-text[data-bug-id]');
+                    for (let i = textareas.length - 1; i >= 0; i--) {
+                        if (!textareas[i].value.trim()) { textareas[i].focus(); break; }
+                    }
+                }, t));
+            } else {
+                setTimeout(() => { window.focus(); }, 300);
+            }
+        }
+
+        function cleanupEmptyBugs() {
+            const before = bugs.length;
+            bugs = bugs.filter(b => b.text && b.text.trim());
+            if (bugs.length !== before) {
+                localStorage.setItem(getStorageKey('bugs'), JSON.stringify(bugs));
+            }
+        }
+
+        function renderBugs() {
+            const list = document.getElementById('bugList');
+            const statusFilter = document.getElementById('bugFilterStatus')?.value || 'all';
+            const deviceFilter = document.getElementById('bugFilterDevice')?.value || 'all';
+            const pageFilter = document.getElementById('bugFilterPage')?.value || 'all';
+            const sortBy = document.getElementById('bugFilterSort')?.value || 'newest';
+
+            let displayBugs = [...bugs];
+            if (currentBugPage) displayBugs = displayBugs.filter(b => b.page === currentBugPage);
+            if (statusFilter !== 'all') displayBugs = displayBugs.filter(b => b.status === statusFilter);
+            if (deviceFilter !== 'all') displayBugs = displayBugs.filter(b => getBugDevices(b).includes(deviceFilter));
+            if (pageFilter !== 'all') displayBugs = displayBugs.filter(b => b.page === pageFilter);
+
+            if (currentMode === 'testing') {
+                const statusOrder = { review: 0, new: 1, fixed: 2 };
+                displayBugs.sort((a,b) => {
+                    const sa = statusOrder[a.status] ?? 1;
+                    const sb = statusOrder[b.status] ?? 1;
+                    if (sa !== sb) return sa - sb;
+                    return b.id - a.id;
+                });
+            } else if (sortBy === 'starred') displayBugs.sort((a,b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0) || b.id - a.id);
+            else if (sortBy === 'flagged') displayBugs.sort((a,b) => (b.flagged ? 1 : 0) - (a.flagged ? 1 : 0) || b.id - a.id);
+            else if (sortBy === 'newest') displayBugs.sort((a,b) => b.id - a.id);
+            else if (sortBy === 'oldest') displayBugs.sort((a,b) => a.id - b.id);
+            else if (sortBy === 'page') displayBugs.sort((a,b) => (a.page||'').localeCompare(b.page||''));
+
+            updateBugCounts();
+
+            list.innerHTML = displayBugs.map(bug => {
+                const imagesHtml = (bug.images && bug.images.length > 0) ? `
+                    <div class="bug-images">
+                        ${bug.images.map((img, idx) => `
+                            <div class="bug-image-wrapper">
+                                <img src="${img}" onclick="window.open().document.write('<img src=\\''+this.src+'\\' style=\\'max-width:100%\\'>')" />
+                                <button class="bug-image-delete" onclick="event.stopPropagation();event.preventDefault();deleteBugImage(${bug.id}, ${idx})">x</button>
+                            </div>
+                        `).join('')}
+                    </div>` : '';
+
+                return `
+                <li class="bug-item status-${bug.status}" data-id="${bug.id}">
+                    <div style="display:flex;flex-direction:column;align-items:center;margin-right:6px;">
+                        ${bug.status === 'review' ? `<span class="bug-revert" onclick="setBugStatus(${bug.id},'new')" title="Back to new">&#128308;</span>` : ''}
+                        <span class="bug-status" onclick="cycleBugStatus(${bug.id})">${bug.status==='new'?'&#128308;':bug.status==='review'?'&#128309;':'&#9989;'}</span>
+                    </div>
+                    <div style="flex:1">
+                        <div style="display:flex;gap:6px;margin-bottom:4px;align-items:center;">
+                            <span style="color:#64748b;font-weight:600;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();copyBugId(${bug.id})" title="Copy Bug${shortId(bug)}">${shortId(bug)}</span>
+                            <span class="bug-page-tag" style="cursor:pointer;text-decoration:underline;color:#64748b;" onclick="event.stopPropagation();openBugPage(${bug.id})">${bug.page}</span>
+                            <div class="device-toggles">
+                                <span class="device-toggle ${getBugDevices(bug).includes('desktop')?'active':''}" onclick="toggleBugDevice(${bug.id},'desktop')">&#128187;</span>
+                                <span class="device-toggle ${getBugDevices(bug).includes('tablet')?'active':''}" onclick="toggleBugDevice(${bug.id},'tablet')">&#128250;</span>
+                                <span class="device-toggle ${getBugDevices(bug).includes('mobile')?'active':''}" onclick="toggleBugDevice(${bug.id},'mobile')">&#128241;</span>
+                            </div>
+                            <button class="bug-star${bug.starred ? ' active' : ''}" onclick="event.stopPropagation();toggleStar(${bug.id})" title="Star">&#9733;</button><button class="bug-flag${bug.flagged ? ' active' : ''}" onclick="event.stopPropagation();toggleFlag(${bug.id})" title="Flag">&#9873;</button>
+                        </div>
+                        ${bug.fix ? `<div class="bug-fix-comment" style="font-size:11px;color:${bug.status==='new'?'#f87171':'#3b82f6'};background:${bug.status==='new'?'#3b1515':'#1e3a5f'};padding:6px 8px;border-radius:4px;margin-bottom:4px;">${bug.status==='new'?'Previous fix (not working): ':'Fix: '}${bug.fix}</div>` : ''}
+                        ${bug.test ? `<div class="bug-test-steps" style="font-size:10px;color:#94a3b8;background:#0f172a;padding:6px 8px;border-radius:4px;margin-bottom:4px;white-space:pre-line;">Test: ${bug.test}</div>` : ''}
+                        <textarea class="bug-text" placeholder="Describe bug... (paste images here)" data-bug-id="${bug.id}" oninput="updateBug(${bug.id}, this.value)" onkeydown="bugTextKeydown(event, ${bug.id})">${bug.text}</textarea>
+                        ${imagesHtml}
+                        <span class="paste-hint">Ctrl/Cmd+V to paste screenshots</span>
+                    </div>
+                    <button class="bug-delete" onclick="deleteBug(${bug.id})">x</button>
+                </li>`;
+            }).join('') || '<li style="color:#64748b;padding:20px;text-align:center;">No bugs. Click the pencil next to any page to add one.</li>';
+
+            setTimeout(() => {
+                document.querySelectorAll('.bug-text').forEach(ta => {
+                    ta.style.height = 'auto';
+                    ta.style.height = ta.scrollHeight + 'px';
+                });
+            }, 10);
+
+            reapplySearchHighlights();
+        }
+
+        function getBugDevices(bug) {
+            if (Array.isArray(bug.devices)) return bug.devices;
+            if (bug.device === 'all' || !bug.device) return ['desktop', 'tablet', 'mobile'];
+            return [bug.device];
+        }
+
+        function nextBugNum() {
+            return Math.max(0, ...bugs.map(b => b.num || 0)) + 1;
+        }
+        function shortId(bug) {
+            if (!bug.num) bug.num = nextBugNum();
+            return '#' + bug.num;
+        }
+        function copyBugId(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            const text = 'Bug' + shortId(bug);
+            navigator.clipboard.writeText(text).then(() => {
+                const toast = document.createElement('div');
+                toast.textContent = 'Copied: ' + text;
+                toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#334155;color:#e2e8f0;padding:6px 16px;border-radius:6px;font-size:12px;z-index:9999;pointer-events:none;';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 1200);
+            });
+        }
+
+        let _deviceClickTimer = null;
+        let _deviceLastClick = { id: null, device: null };
+
+        function toggleBugDevice(id, device) {
+            if (_deviceClickTimer && _deviceLastClick.id === id && _deviceLastClick.device === device) {
+                clearTimeout(_deviceClickTimer);
+                _deviceClickTimer = null;
+                const bug = bugs.find(b => b.id === id);
+                if (!bug) return;
+                bug.devices = [device];
+                delete bug.device;
+                saveBugs();
+                renderBugs();
+                return;
+            }
+            _deviceLastClick = { id, device };
+            _deviceClickTimer = setTimeout(() => {
+                _deviceClickTimer = null;
+                const bug = bugs.find(b => b.id === id);
+                if (!bug) return;
+                let devs = getBugDevices(bug);
+                if (devs.includes(device)) {
+                    devs = devs.filter(d => d !== device);
+                    if (devs.length === 0) devs = ['desktop', 'tablet', 'mobile'];
+                } else {
+                    devs.push(device);
+                }
+                bug.devices = devs;
+                delete bug.device;
+                saveBugs();
+                renderBugs();
+            }, 250);
+        }
+
+        function openBugPage(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            const devs = getBugDevices(bug);
+            const url = getUrl(bug.page);
+            if (devs.length === 3) openAllDeviceWindows(url, false);
+            else openInNewWindow(url);
+        }
+
+        function trackStatusChange(bug, newStatus) {
+            if (!bug.history) bug.history = [];
+            bug.history.push({ from: bug.status, to: newStatus, at: new Date().toISOString() });
+            if (newStatus === 'fixed') bug.fixedAt = new Date().toISOString();
+            if (newStatus === 'review') bug.reviewedAt = new Date().toISOString();
+            if (newStatus === 'new' && (bug.status === 'fixed' || bug.status === 'review')) {
+                bug.reopenedAt = new Date().toISOString();
+            }
+            bug.status = newStatus;
+        }
+
+        function setBugStatus(id, status) {
+            const bug = bugs.find(b => b.id === id);
+            if (bug) {
+                trackStatusChange(bug, status);
+                saveBugs();
+                renderBugs();
+                updateBugCounts();
+                refreshSidebar();
+            }
+        }
+
+        function bugTextKeydown(e, bugId) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const bug = bugs.find(b => b.id === bugId);
+                const page = bug ? bug.page : currentBugPage || pages[0]?.path || '/';
+                addBugForPage(page);
+                setTimeout(() => {
+                    const textareas = document.querySelectorAll('.bug-text[data-bug-id]');
+                    for (let i = 0; i < textareas.length; i++) {
+                        if (!textareas[i].value.trim()) { textareas[i].focus(); break; }
+                    }
+                }, 50);
+            }
+        }
+
+        function updateBug(id, text) {
+            const bug = bugs.find(b => b.id === id);
+            if (bug) { bug.text = text; saveBugs(); }
+            event && event.target && (event.target.style.height = 'auto', event.target.style.height = event.target.scrollHeight + 'px');
+        }
+
+        function cycleBugStatus(id) {
+            const bug = bugs.find(b => b.id === id);
+            if (bug) {
+                const newStatus = bug.status==='new'?'review':bug.status==='review'?'fixed':'new';
+                trackStatusChange(bug, newStatus);
+                saveBugs();
+                renderBugs();
+                updateBugCounts();
+                refreshSidebar();
+            }
+        }
+
+        function deleteBug(id) {
+            bugs = bugs.filter(b => b.id !== id);
+            saveBugs();
+            renderBugs();
+        }
+
+        // Text Size
+        let textSizePercent = parseInt(localStorage.getItem('debugmap-textsize') || '100');
+        applyTextSize();
+
+        function changeTextSize(dir) {
+            textSizePercent = Math.max(60, Math.min(200, textSizePercent + dir * 10));
+            applyTextSize();
+            localStorage.setItem('debugmap-textsize', textSizePercent);
+        }
+        function resetTextSize() {
+            textSizePercent = 100;
+            applyTextSize();
+            localStorage.setItem('debugmap-textsize', textSizePercent);
+        }
+        function applyTextSize() {
+            document.body.style.zoom = (textSizePercent / 100);
+            const label = document.getElementById('textSizeLabel');
+            if (label) label.textContent = textSizePercent + '%';
+        }
+
+        function showBugsByStatus(status) {
+            ensureMapView();
+            currentBugPage = null;
+            const count = bugs.filter(b => b.status === status).length;
+            document.getElementById('bugFilterStatus').value = status;
+            openBugPanel(count);
+            renderBugs();
+        }
+
+        function updateBugCounts() {
+            const newCount = bugs.filter(b => b.status === 'new').length;
+            const reviewCount = bugs.filter(b => b.status === 'review').length;
+            const fixedCount = bugs.filter(b => b.status === 'fixed').length;
+            const el = (id) => document.getElementById(id);
+            if (el('bugCountNew')) el('bugCountNew').textContent = newCount;
+            if (el('bugCountReview')) el('bugCountReview').textContent = reviewCount;
+            if (el('bugCountFixed')) el('bugCountFixed').textContent = fixedCount;
+            if (el('bugCount2New')) el('bugCount2New').textContent = newCount;
+            if (el('bugCount2Review')) el('bugCount2Review').textContent = reviewCount;
+            if (el('bugCount2Fixed')) el('bugCount2Fixed').textContent = fixedCount;
+        }
+
+        // Image paste
+        let _lastImgDelete = 0;
+        function deleteBugImage(bugId, imgIdx) {
+            const now = Date.now();
+            if (now - _lastImgDelete < 300) return;
+            _lastImgDelete = now;
+            const bug = bugs.find(b => b.id === bugId);
+            if (bug && bug.images && imgIdx < bug.images.length) {
+                bug.images.splice(imgIdx, 1);
+                if (bug.images.length === 0) delete bug.images;
+                saveBugs();
+                renderBugs();
+            }
+        }
+
+        // ========================
+        // KANBAN
+        // ========================
+        let draggingBugId = null;
+
+        function toggleKanban() {
+            const board = document.getElementById('kanbanBoard');
+            board.classList.toggle('active');
+            if (board.classList.contains('active')) {
+                localStorage.setItem(getStorageKey('kanban-open'), '1');
+                closeBugPanel();
+                if (!sidebarCollapsed) toggleSidebar();
+                populateKanbanPageFilter();
+                renderKanban();
+            } else {
+                localStorage.removeItem(getStorageKey('kanban-open'));
+                if (sidebarCollapsed) toggleSidebar();
+            }
+        }
+
+        function populateKanbanPageFilter() {
+            const select = document.getElementById('kanbanFilterPage');
+            const uniquePages = [...new Set(bugs.map(b => b.page))].sort();
+            select.innerHTML = '<option value="all">All Pages</option>' + uniquePages.map(p => `<option value="${p}">${p}</option>`).join('');
+        }
+
+        function renderKanban() {
+            const pageFilter = document.getElementById('kanbanFilterPage')?.value || 'all';
+            const deviceFilter = document.getElementById('kanbanFilterDevice')?.value || 'all';
+
+            let filtered = [...bugs];
+            if (pageFilter !== 'all') filtered = filtered.filter(b => b.page === pageFilter);
+            if (deviceFilter !== 'all') filtered = filtered.filter(b => getBugDevices(b).includes(deviceFilter));
+            if (_kanbanStarFilter) filtered = filtered.filter(b => b.starred);
+            if (_kanbanFlagFilter) filtered = filtered.filter(b => b.flagged);
+
+            const _draftComments = {};
+            document.querySelectorAll('.card-comment-input').forEach(input => {
+                if (input.value.trim()) {
+                    const card = input.closest('.kanban-card[data-bug-id]');
+                    if (card) _draftComments[card.dataset.bugId] = input.value;
+                }
+            });
+
+            const byStatus = { new: [], review: [], fixed: [] };
+            filtered.forEach(b => { if (byStatus[b.status]) byStatus[b.status].push(b); });
+
+            if (_reviewSortAcceptedFirst) {
+                const hasAcceptedFix = (bug) => bug.comments && bug.comments.some(c => (c.text || '').toLowerCase().startsWith('accepted proposed fix'));
+                byStatus.review.sort((a, b) => (hasAcceptedFix(b) ? 1 : 0) - (hasAcceptedFix(a) ? 1 : 0));
+            }
+
+            byStatus.fixed.sort((a, b) => {
+                const aTime = a.fixedAt || (a.history && a.history.length ? a.history[a.history.length-1].at : '') || '';
+                const bTime = b.fixedAt || (b.history && b.history.length ? b.history[b.history.length-1].at : '') || '';
+                return bTime.localeCompare(aTime);
+            });
+
+            ['new', 'review', 'fixed'].forEach(status => {
+                const container = document.getElementById('kanban' + status.charAt(0).toUpperCase() + status.slice(1) + 'Cards');
+                const countEl = document.getElementById('kanban' + status.charAt(0).toUpperCase() + status.slice(1) + 'Count');
+                countEl.textContent = byStatus[status].length;
+
+                container.innerHTML = byStatus[status].map((bug, idx) => {
+                    const imgHtml = (bug.images && bug.images.length > 0) ?
+                        `<div class="card-images">${bug.images.map((img, imgIdx) => `<div class="card-img-wrap"><img src="${img}" onclick="event.stopPropagation();window.open('').document.write('<img src=\\''+this.src+'\\' style=\\'max-width:100%\\'>')" onmouseenter="showImgPreview(event,this.src)" onmousemove="moveImgPreview(event)" onmouseleave="hideImgPreview()" /><button class="card-img-del" onclick="event.stopPropagation();deleteKanbanImage(${bug.id},${imgIdx})">x</button></div>`).join('')}</div>` : '';
+                    const fixAccepted = bug.comments && bug.comments.some(c => (c.text || '').toLowerCase().startsWith('accepted proposed fix'));
+                    const isFirstReview = status === 'review' && idx === 0;
+                    let testContent = bug.test || '';
+                    if (!testContent && bug.fix) {
+                        if (fixAccepted) {
+                            const page = bug.page || 'this page';
+                            const desc = (bug.text || '').toLowerCase();
+                            let steps = '1. Open ' + page;
+                            if (desc.includes('mobile') || desc.includes('responsive')) steps += '\n2. Resize to mobile viewport (375px)';
+                            else if (desc.includes('tablet')) steps += '\n2. Resize to tablet viewport (768px)';
+                            else steps += '\n2. Inspect the area described below';
+                            steps += '\n3. Confirm the original issue is resolved:';
+                            steps += '\n   "' + (bug.text || '').substring(0, 100) + '"';
+                            steps += '\n4. Check nothing else looks broken nearby';
+                            testContent = steps;
+                        } else {
+                            testContent = 'Proposed fix: ' + bug.fix;
+                        }
+                    }
+                    const testHtml = testContent ? `<div class="card-tooltip${isFirstReview ? ' always-visible' : ''}">${testContent}</div>` : '';
+                    const timelineHtml = buildTimeline(bug);
+                    const commentsHtml = bug.status === 'review' ? buildCommentsSection(bug) : '';
+                    const starFlagHtml = `<button class="card-star${bug.starred ? ' active' : ''}" onclick="event.stopPropagation();toggleStar(${bug.id})" title="Star">&#9733;</button><button class="card-flag${bug.flagged ? ' active' : ''}" onclick="event.stopPropagation();toggleFlag(${bug.id})" title="Flag">&#9873;</button>`;
+                    const skipHtml = bug.status === 'review' ? `<span onclick="event.stopPropagation();skipReviewBug(${bug.id})" title="Send to bottom" style="color:#94a3b8;font-size:10px;padding:0 2px;">&#9660;</span>` : '';
+                    const fixBoxHtml = bug.status === 'fixed' ? '' : `<div class="card-fix${bug.fix ? '' : ' empty'}" onclick="kanbanEditFix(event, ${bug.id})">${bug.fix ? 'Fix: ' + bug.fix : '+ Add fix note'}</div>`;
+                    const acceptFixHtml = (bug.status === 'review' && bug.fix && !fixAccepted) ? `<button onclick="event.stopPropagation();acceptProposedFix(${bug.id})" style="margin-top:4px;padding:4px 10px;background:#b45309;border:1px solid #f59e0b;border-radius:4px;color:#fbbf24;font-size:10px;font-weight:600;cursor:pointer;width:100%;">Accept Proposed Fix</button>` : '';
+                    return `
+                        <div class="kanban-card" draggable="true" data-bug-id="${bug.id}" tabindex="0" style="position:relative;"
+                             ondragstart="kanbanDragStart(event, ${bug.id})" ondragend="kanbanDragEnd(event)"
+                             onclick="selectKanbanCard(event, ${bug.id})" onkeydown="kanbanCardKeydown(event, ${bug.id})">
+                            <div style="display:flex;align-items:center;gap:0;line-height:1.4;"><span onclick="event.stopPropagation();copyBugId(${bug.id})" title="Copy Bug${shortId(bug)}" style="color:#64748b;font-weight:600;font-size:11px;cursor:pointer;padding:2px 4px;border-radius:3px;flex-shrink:0;" onmouseover="this.style.background='#1e293b';this.style.color='#e2e8f0'" onmouseout="this.style.background='';this.style.color='#64748b'">${shortId(bug)}</span><div class="card-page" onclick="event.stopPropagation();syncBugPanelToCard(${bug.id});openInNewWindow('${getUrl(bug.page)}')" style="display:flex;align-items:baseline;cursor:pointer;padding:2px 4px;border-radius:3px;flex:1;min-width:0;" onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background=''"><span style="text-decoration:underline;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${bug.page}</span></div><span style="margin-left:auto;display:flex;align-items:center;gap:1px;">${starFlagHtml}${skipHtml}</span></div>
+                            ${bug.status === 'new' && bug.comments && bug.comments.length ? '<div style="font-size:10px;color:#f59e0b;background:#3b2a0a;padding:4px 8px;border-radius:4px;margin-bottom:4px;border-left:2px solid #f59e0b;">' + escHtml(bug.comments[bug.comments.length - 1].text) + '</div>' : ''}
+                            <div class="card-text" onclick="kanbanEditText(event, ${bug.id})">${bug.text || '(no description)'}</div>
+                            ${fixBoxHtml}
+                            ${acceptFixHtml}
+                            ${imgHtml}
+                            <div class="card-paste-hint" style="font-size:9px;color:#475569;margin-top:4px;">Ctrl/Cmd+V to paste screenshot</div>
+                            ${testHtml}
+                            ${commentsHtml}
+                            ${timelineHtml}
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+                                <div class="card-device" style="margin-top:0;">${['desktop','tablet','mobile'].map(d => {const active = getBugDevices(bug).includes(d); const emoji = d==='desktop'?'&#128187;':d==='tablet'?'&#128250;':'&#128241;'; return '<span onclick="event.stopPropagation();toggleBugDevice('+bug.id+',\''+d+'\');renderKanban();" style="cursor:pointer;opacity:'+(active?'1':'0.25')+';padding:1px 3px;border-radius:3px;'+(active?'background:#334155;':'')+'" title="'+d+'">'+emoji+'</span>';}).join(' ')}</div>
+                                ${bug.status === 'review' ? '<div class="card-actions"><button class="card-action-btn reject" onclick="event.stopPropagation();rejectReviewBug('+bug.id+')" title="Back to new">&#9664;</button><button class="card-action-btn approve" onclick="event.stopPropagation();approveReviewBug('+bug.id+')" title="Move to fixed">&#9654;</button></div>' : ''}
+                            </div>
+                        </div>`;
+                }).join('') || getEmptyColumnMessage(status);
+            });
+
+            Object.keys(_draftComments).forEach(bugId => {
+                const card = document.querySelector('.kanban-card[data-bug-id="' + bugId + '"]');
+                if (card) {
+                    const input = card.querySelector('.card-comment-input');
+                    if (input) { input.value = _draftComments[bugId]; input.focus(); }
+                }
+            });
+            reapplySearchHighlights();
+        }
+
+        function getEmptyColumnMessage(status) {
+            if (status === 'new') {
+                const quips = [
+                    { icon: '&#128270;', title: "You're not looking hard enough!", tips: ['Try resizing the browser window', 'Check dark mode vs light mode', 'Test on mobile viewport', 'Click every button twice'] },
+                    { icon: '&#128373;', title: "Suspiciously clean...", tips: ['Zoom to 150% and check layouts', 'Open in an incognito window', 'Test with slow network throttling'] },
+                ];
+                const q = quips[Math.floor(Math.random() * quips.length)];
+                const tipList = q.tips.map(t => '<div style="margin:2px 0;">- ' + t + '</div>').join('');
+                return '<div class="kanban-empty-msg"><span class="empty-icon">' + q.icon + '</span><div class="empty-title">' + q.title + '</div><div class="empty-subtitle" style="text-align:left;max-width:200px;margin:8px auto 0;">' + tipList + '</div></div>';
+            }
+            if (status === 'review') {
+                const msgs = [
+                    { icon: '&#127881;', title: "All caught up!", sub: "Nothing to review right now." },
+                    { icon: '&#10024;', title: "Review queue is empty!", sub: "Sit back and relax." },
+                ];
+                const m = msgs[Math.floor(Math.random() * msgs.length)];
+                return '<div class="kanban-empty-msg"><span class="empty-icon">' + m.icon + '</span><div class="empty-title">' + m.title + '</div><div class="empty-subtitle">' + m.sub + '</div></div>';
+            }
+            if (status === 'fixed') {
+                return '<div class="kanban-empty-msg"><span class="empty-icon">&#128679;</span><div class="empty-title">Nothing fixed yet</div><div class="empty-subtitle">Review some bugs and move them here when done.</div></div>';
+            }
+            return '';
+        }
+
+        function collapseColumn(status) {
+            const id = status === 'new' ? 'kanbanColNew' : status === 'fixed' ? 'kanbanColFixed' : null;
+            if (!id) return;
+            document.getElementById(id).classList.add('collapsed');
+        }
+
+        function expandColumn(el) {
+            if (el.classList.contains('collapsed')) el.classList.remove('collapsed');
+        }
+
+        // Global paste handler
+        document.addEventListener('paste', function(e) {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            let imageItem = null;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.startsWith('image/')) { imageItem = items[i]; break; }
+            }
+            if (!imageItem) return;
+            const kanbanOpen = document.getElementById('kanbanBoard')?.classList.contains('active');
+            let targetId = null;
+            if (kanbanOpen) {
+                const focusedCard = e.target.closest?.('.kanban-card[data-bug-id]');
+                targetId = (focusedCard && parseInt(focusedCard.dataset.bugId))
+                    || selectedKanbanBugId
+                    || (bugs.find(b => b.status === 'review') || {}).id
+                    || (bugs.find(b => b.status === 'new') || {}).id;
+            } else {
+                const ta = e.target.closest?.('.bug-text[data-bug-id]');
+                if (ta) targetId = parseInt(ta.dataset.bugId);
+            }
+            if (!targetId) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const file = imageItem.getAsFile();
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const bug = bugs.find(b => b.id === targetId);
+                if (!bug) return;
+                if (!bug.images) bug.images = [];
+                bug.images.push(ev.target.result);
+                saveBugs();
+                if (kanbanOpen) {
+                    renderKanban();
+                    selectedKanbanBugId = targetId;
+                    const card = document.querySelector('.kanban-card[data-bug-id="' + targetId + '"]');
+                    if (card) {
+                        document.querySelectorAll('.kanban-card').forEach(c => c.classList.remove('card-selected'));
+                        card.classList.add('card-selected');
+                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                } else {
+                    renderBugs();
+                }
+            };
+            reader.readAsDataURL(file);
+        }, true);
+
+        function fmtDate(iso) {
+            if (!iso) return '~';
+            const d = new Date(iso);
+            const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+            return mon + ' ' + d.getDate() + ', ' + d.getFullYear() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function buildTimeline(bug) {
+            let items = [];
+            if (bug.created && bug.status !== 'review') items.push({ icon: '&#128308;', label: 'Created', time: bug.created });
+            if (bug.history && bug.history.length) {
+                let reviewCount = 0;
+                let reopenCount = 0;
+                bug.history.forEach(h => {
+                    if (h.to === 'review') {
+                        reviewCount++;
+                        items.push({ icon: '&#128309;', label: 'Under review' + (reviewCount > 1 ? ' (#' + reviewCount + ')' : ''), time: h.at });
+                    }
+                    if (h.to === 'new' && (h.from === 'review' || h.from === 'fixed')) {
+                        reopenCount++;
+                        items.push({ icon: '&#128308;', label: 'Still broken (#' + reopenCount + ')', time: h.at });
+                    }
+                    if (h.to === 'fixed') items.push({ icon: '&#9989;', label: 'Fixed', time: h.at });
+                });
+            } else {
+                if (bug.reviewedAt) items.push({ icon: '&#128309;', label: 'Under review', time: bug.reviewedAt });
+                if (bug.reopenedAt) items.push({ icon: '&#128308;', label: 'Still broken', time: bug.reopenedAt });
+                if (bug.fixedAt) items.push({ icon: '&#9989;', label: 'Fixed', time: bug.fixedAt });
+            }
+            if (bug.comments) {
+                bug.comments.forEach(c => {
+                    if ((c.text || '').toLowerCase().startsWith('accepted proposed fix')) {
+                        items.push({ icon: '&#128992;', label: 'Fix accepted', time: c.at });
+                    }
+                });
+                items.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+            }
+            if (!items.length) return '';
+            let out = '<div class="card-timeline">';
+            items.forEach(item => {
+                out += '<div class="timeline-item"><span class="timeline-icon">' + item.icon + '</span><span class="timeline-label">' + item.label + '</span><span class="timeline-time">' + fmtDate(item.time) + '</span></div>';
+            });
+            out += '</div>';
+            return out;
+        }
+
+        function buildCommentsSection(bug) {
+            const comments = bug.comments || [];
+            const sorted = [...comments].reverse();
+            let out = '<div class="card-comments">';
+            sorted.forEach(c => {
+                out += '<div class="card-comment"><span class="comment-time">' + fmtDate(c.at) + '</span><div class="comment-text">' + escHtml(c.text) + '</div></div>';
+            });
+            out += '<input class="card-comment-input" placeholder="Add comment about what\'s still broken..." onkeydown="kanbanCommentKeydown(event, ' + bug.id + ')" />';
+            out += '</div>';
+            return out;
+        }
+
+        function escHtml(s) {
+            return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function kanbanCommentKeydown(e, bugId) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                const text = e.target.value.trim();
+                if (!text) return;
+                const bug = bugs.find(b => b.id === bugId);
+                if (!bug) return;
+                if (!bug.comments) bug.comments = [];
+                bug.comments.push({ text, at: new Date().toISOString() });
+                trackStatusChange(bug, 'new');
+                bugs = bugs.filter(b => b.id !== bugId);
+                bugs.unshift(bug);
+                saveBugs();
+                renderKanban();
+                updateBugCounts();
+                refreshSidebar();
+                openTopReviewPage();
+            }
+        }
+
+        let selectedKanbanBugId = null;
+
+        function selectKanbanCard(e, bugId) {
+            const interactive = e.target.closest('.card-comment-input, .card-text-edit, .card-fix-edit, .card-img-del');
+            selectedKanbanBugId = bugId;
+            if (!interactive) {
+                document.querySelectorAll('.kanban-card').forEach(c => c.classList.remove('card-selected'));
+                const card = document.querySelector(`.kanban-card[data-bug-id="${bugId}"]`);
+                if (card) { card.classList.add('card-selected'); card.focus(); }
+            }
+            syncBugPanelToCard(bugId);
+        }
+
+        function openTopReviewPage() {
+            setTimeout(() => {
+                const reviewBugs = bugs.filter(b => b.status === 'review');
+                if (reviewBugs.length > 0) {
+                    const top = reviewBugs[0];
+                    syncBugPanelToCard(top.id);
+                    openInNewWindow(getUrl(top.page), true);
+                }
+            }, 100);
+        }
+
+        function syncBugPanelToCard(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            currentBugPage = bug.page;
+            const panel = document.getElementById('bugPanel');
+            if (panel.classList.contains('active')) {
+                const count = bugs.filter(b => b.page === bug.page).length;
+                panel.style.height = smartPanelHeight(count);
+                renderBugs();
+            }
+        }
+
+        function kanbanCardKeydown(e, bugId) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const bug = bugs.find(b => b.id === bugId);
+                if (!bug) return;
+                if (bug.status === 'review') {
+                    trackStatusChange(bug, 'fixed');
+                    bugs = bugs.filter(b => b.id !== bugId);
+                    bugs.unshift(bug);
+                    saveBugs();
+                    renderKanban();
+                    updateBugCounts();
+                    refreshSidebar();
+                    openTopReviewPage();
+                }
+            }
+        }
+
+        function acceptProposedFix(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            if (!bug.comments) bug.comments = [];
+            bug.comments.push({ text: 'Accepted proposed fix: ' + bug.fix, at: new Date().toISOString() });
+            trackStatusChange(bug, 'new');
+            bugs = bugs.filter(b => b.id !== bugId);
+            bugs.unshift(bug);
+            saveBugs();
+            renderKanban();
+            updateBugCounts();
+            refreshSidebar();
+            openTopReviewPage();
+        }
+
+        function skipReviewBug(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            bugs = bugs.filter(b => b.id !== bugId);
+            bugs.push(bug);
+            saveBugs();
+            renderKanban();
+            openTopReviewPage();
+        }
+
+        let _previewEl = null;
+        function showImgPreview(e, src) {
+            if (!_previewEl) {
+                _previewEl = document.createElement('img');
+                _previewEl.style.cssText = 'position:fixed;z-index:300;pointer-events:none;max-width:500px;max-height:400px;border-radius:6px;border:2px solid #38bdf8;box-shadow:0 8px 32px rgba(0,0,0,0.6);object-fit:contain;background:#0f172a;';
+                document.body.appendChild(_previewEl);
+            }
+            _previewEl.src = src;
+            _previewEl.style.display = 'block';
+            moveImgPreview(e);
+        }
+        function moveImgPreview(e) {
+            if (!_previewEl) return;
+            const x = Math.min(e.clientX + 15, window.innerWidth - 520);
+            const y = Math.min(e.clientY + 15, window.innerHeight - 420);
+            _previewEl.style.left = x + 'px';
+            _previewEl.style.top = y + 'px';
+        }
+        function hideImgPreview() {
+            if (_previewEl) _previewEl.style.display = 'none';
+        }
+
+        function rejectReviewBug(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            if (!bug.comments) bug.comments = [];
+            const card = document.querySelector('.kanban-card[data-bug-id="' + bugId + '"]');
+            const input = card?.querySelector('.card-comment-input');
+            const text = input?.value.trim() || 'Still broken';
+            bug.comments.push({ text, at: new Date().toISOString() });
+            trackStatusChange(bug, 'new');
+            bugs = bugs.filter(b => b.id !== bugId);
+            bugs.unshift(bug);
+            saveBugs();
+            renderKanban();
+            updateBugCounts();
+            refreshSidebar();
+            openTopReviewPage();
+        }
+
+        function approveReviewBug(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            trackStatusChange(bug, 'fixed');
+            bugs = bugs.filter(b => b.id !== bugId);
+            bugs.unshift(bug);
+            saveBugs();
+            renderKanban();
+            updateBugCounts();
+            refreshSidebar();
+            openTopReviewPage();
+        }
+
+        function deleteKanbanImage(bugId, idx) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (bug && bug.images) {
+                bug.images.splice(idx, 1);
+                saveBugs();
+                renderKanban();
+            }
+        }
+
+        function kanbanDragStart(e, bugId) {
+            draggingBugId = bugId;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function kanbanDragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.kanban-column').forEach(c => c.classList.remove('drag-over'));
+        }
+
+        function kanbanDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function kanbanDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function kanbanDrop(e, newStatus) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            if (draggingBugId === null) return;
+            const bug = bugs.find(b => b.id === draggingBugId);
+            if (bug && bug.status !== newStatus) {
+                trackStatusChange(bug, newStatus);
+                bugs = bugs.filter(b => b.id !== draggingBugId);
+                bugs.unshift(bug);
+                saveBugs();
+                renderKanban();
+                updateBugCounts();
+                refreshSidebar();
+            }
+            draggingBugId = null;
+        }
+
+        function kanbanEditText(e, bugId) {
+            e.stopPropagation();
+            const div = e.currentTarget;
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug || div.querySelector('textarea')) return;
+            const ta = document.createElement('textarea');
+            ta.className = 'card-text-edit';
+            ta.value = bug.text || '';
+            div.textContent = '';
+            div.appendChild(ta);
+            ta.focus();
+            const card = div.closest('.kanban-card');
+            card.setAttribute('draggable', 'false');
+            ta.onblur = () => {
+                bug.text = ta.value;
+                saveBugs();
+                card.setAttribute('draggable', 'true');
+                renderKanban();
+                renderBugs();
+            };
+            ta.onkeydown = (ev) => {
+                if (ev.key === 'Escape') { ta.blur(); }
+                if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ta.blur(); }
+            };
+        }
+
+        function kanbanEditFix(e, bugId) {
+            e.stopPropagation();
+            const div = e.currentTarget;
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug || div.querySelector('textarea')) return;
+            const ta = document.createElement('textarea');
+            ta.className = 'card-fix-edit';
+            ta.value = bug.fix || '';
+            ta.placeholder = 'Describe the fix or add notes...';
+            div.textContent = '';
+            div.appendChild(ta);
+            ta.focus();
+            const card = div.closest('.kanban-card');
+            card.setAttribute('draggable', 'false');
+            ta.onblur = () => {
+                bug.fix = ta.value;
+                saveBugs();
+                card.setAttribute('draggable', 'true');
+                renderKanban();
+                renderBugs();
+            };
+            ta.onkeydown = (ev) => {
+                if (ev.key === 'Escape') { ta.blur(); }
+                if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ta.blur(); }
+            };
+        }
+
+        // Page Requests
+        function savePageRequests() {
+            localStorage.setItem(getStorageKey('pages'), JSON.stringify(pageRequests));
+        }
+
+        function addPage() {
+            pageRequests.push({ id: Date.now(), title: '/new-page', description: '', status: 'pending' });
+            savePageRequests();
+            renderPageRequests();
+        }
+
+        function renderPageRequests() {
+            const list = document.getElementById('pageList');
+            list.innerHTML = pageRequests.map(p => `
+                <li class="bug-item status-${p.status}">
+                    <span class="bug-status" onclick="cyclePageStatus(${p.id})">${p.status==='pending'?'&#11093;':p.status==='inprogress'?'&#128260;':'&#9989;'}</span>
+                    <div style="flex:1">
+                        <input class="bug-text" value="${p.title}" oninput="updatePage(${p.id},'title',this.value)" style="margin-bottom:4px;">
+                        <textarea class="bug-text" placeholder="Description..." oninput="updatePage(${p.id},'description',this.value)">${p.description}</textarea>
+                    </div>
+                </li>
+            `).join('') || '<li style="color:#64748b;padding:20px;text-align:center;">No page requests.</li>';
+        }
+
+        function updatePage(id, field, value) {
+            const p = pageRequests.find(x => x.id === id);
+            if (p) { p[field] = value; savePageRequests(); }
+        }
+
+        function cyclePageStatus(id) {
+            const p = pageRequests.find(x => x.id === id);
+            if (p) { p.status = p.status==='pending'?'inprogress':p.status==='inprogress'?'done':'pending'; savePageRequests(); renderPageRequests(); }
+        }
+
+        // Sidebar search
+        document.getElementById('searchBox').addEventListener('input', e => {
+            const q = e.target.value.toLowerCase();
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(q) ? 'flex' : 'none';
+            });
+        });
+
+        // Arrow key navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || (active.tagName === 'TEXTAREA' && active.value.trim()))) return;
+            if (!selectedPage) return;
+            e.preventDefault();
+            const idx = pages.findIndex(p => p.path === selectedPage);
+            if (idx === -1) return;
+            const newIdx = e.key === 'ArrowDown'
+                ? Math.min(idx + 1, pages.length - 1)
+                : Math.max(idx - 1, 0);
+            if (newIdx === idx) return;
+            const newPage = pages[newIdx];
+            selectPage(newPage.path);
+            openInNewWindow(getUrl(newPage.path), true);
+            setTimeout(() => {
+                const activeItem = document.querySelector('.nav-item.active');
+                if (activeItem) activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }, 60);
+        });
+
+        // Settings
+        let _appSettings = JSON.parse(localStorage.getItem('debugmap-settings') || '{}');
+
+        function openSettings() {
+            document.getElementById('settingsOverlay').classList.add('active');
+            updateSettingsToggles();
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsOverlay').classList.remove('active');
+        }
+
+        function switchSettingsTab(btn, tabId) {
+            document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            ['tabGlobalSettings', 'tabShortcuts'].forEach(id => {
+                document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
+            });
+        }
+
+        function toggleSetting(btn, key) {
+            const isOn = btn.classList.toggle('on');
+            _appSettings[key] = isOn;
+            localStorage.setItem('debugmap-settings', JSON.stringify(_appSettings));
+        }
+
+        function saveSetting(key, val) {
+            _appSettings[key] = val;
+            localStorage.setItem('debugmap-settings', JSON.stringify(_appSettings));
+        }
+
+        function updateSettingsToggles() {
+            const defaults = { autoOpenNext: true, confirmDelete: false };
+            Object.entries(defaults).forEach(([key, def]) => {
+                const val = _appSettings[key] !== undefined ? _appSettings[key] : def;
+                const idMap = { autoOpenNext: 'settingAutoOpen', confirmDelete: 'settingConfirmDelete' };
+                const el = document.getElementById(idMap[key]);
+                if (el) el.classList.toggle('on', val);
+            });
+        }
+
+        // ========================
+        // INIT
+        // ========================
+        // Try to load last config from localStorage, or auto-load project.json
+        (async function init() {
+            const lastConfig = localStorage.getItem('debugmap-last-config');
+            if (lastConfig) {
+                try {
+                    const config = JSON.parse(lastConfig);
+                    if (config.name && config.pages) {
+                        applyProjectConfig(config);
+                        return;
+                    }
+                } catch(e) {}
+            }
+            // Try to load project.json from same directory
+            try {
+                const res = await fetch('project.json');
+                if (res.ok) {
+                    const config = await res.json();
+                    if (config.name && config.pages) {
+                        applyProjectConfig(config);
+                        return;
+                    }
+                }
+            } catch(e) {}
+            // No config found - show load overlay
+            showLoadOverlay();
+        })();
+
+        // Expose for coding agents
+        window.bugSystem = {
+            getBugs: () => bugs,
+            addBug: (page, text) => { bugs.push({id:Date.now(), num:nextBugNum(), page, text, status:'new'}); saveBugs(); renderBugs(); },
+            setStatus: (page, text, status) => { const b = bugs.find(x=>x.page===page&&x.text===text); if(b){b.status=status; saveBugs(); renderBugs();} }
+        };
+    </script>
+</body>
+</html>

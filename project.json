@@ -1,0 +1,24 @@
+{
+  "name": "My Project",
+  "environments": {
+    "local": "http://localhost:3000",
+    "staging": "https://staging.example.com",
+    "production": "https://example.com"
+  },
+  "pages": [
+    { "path": "/", "name": "Home", "category": "public", "description": "Public homepage" },
+    { "path": "/login", "name": "Login", "category": "auth", "description": "Login page" },
+    { "path": "/signup", "name": "Sign Up", "category": "auth", "description": "Registration page" },
+    { "path": "/dashboard", "name": "Dashboard", "category": "protected", "description": "Main dashboard" },
+    { "path": "/settings", "name": "Settings", "category": "protected", "description": "User settings" },
+    { "path": "/admin", "name": "Admin", "category": "admin", "description": "Admin panel" }
+  ],
+  "navigation": [
+    ["/", "/login"],
+    ["/", "/signup"],
+    ["/login", "/dashboard"],
+    ["/signup", "/dashboard"],
+    ["/dashboard", "/settings"],
+    ["/dashboard", "/admin"]
+  ]
+}
