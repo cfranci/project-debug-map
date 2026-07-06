@@ -458,6 +458,142 @@
         }
         .load-box .load-secondary:hover { background: #475569; }
         .load-box .load-error { color: #f87171; font-size: 12px; margin-top: 12px; }
+
+        /* ======================== FEATURE MAP ======================== */
+        .featuremap-container {
+            display: none; position: fixed; top: 0; left: 320px; right: 0; bottom: 0;
+            background: #0f172a; z-index: 200; padding: 20px; overflow: hidden;
+        }
+        .featuremap-container.active { display: flex; flex-direction: column; }
+        .featuremap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0; }
+        .featuremap-header h2 { color: #e2e8f0; margin: 0; }
+        .featuremap-body { display: flex; flex: 1; min-height: 0; gap: 0; }
+        .featuremap-graph { flex: 1; position: relative; overflow: hidden; }
+        .featuremap-graph svg { width: 100%; height: 100%; cursor: grab; }
+        .featuremap-graph svg:active { cursor: grabbing; }
+
+        .feature-detail {
+            width: 0; overflow: hidden; background: #1e293b; border-left: 1px solid #334155;
+            transition: width 0.25s; flex-shrink: 0;
+        }
+        .feature-detail.active { width: 360px; overflow-y: auto; padding: 20px; }
+        .feature-detail h3 { color: #38bdf8; font-size: 16px; margin-bottom: 12px; }
+        .feature-detail .detail-section { margin-bottom: 16px; }
+        .feature-detail .detail-label { color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .feature-detail .detail-value { color: #e2e8f0; font-size: 13px; line-height: 1.6; }
+        .feature-detail .detail-file { color: #a78bfa; font-size: 12px; padding: 2px 0; font-family: monospace; }
+        .feature-detail .detail-dep { display: inline-block; padding: 3px 8px; background: #334155; border-radius: 4px; font-size: 11px; margin: 2px; cursor: pointer; color: #e2e8f0; }
+        .feature-detail .detail-dep:hover { background: #475569; }
+        .feature-detail .detail-dep.incoming { border-left: 2px solid #f59e0b; }
+        .feature-detail .detail-dep.outgoing { border-left: 2px solid #38bdf8; }
+        .feature-detail .detail-tech { display: inline-block; padding: 2px 8px; background: #1e3a5f; border-radius: 4px; font-size: 11px; margin: 2px; color: #60a5fa; }
+        .feature-detail .detail-notes { color: #cbd5e1; font-size: 12px; line-height: 1.7; background: #0f172a; padding: 10px; border-radius: 6px; border: 1px solid #334155; }
+        .feature-detail .detail-close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #64748b; cursor: pointer; font-size: 18px; }
+        .feature-detail .detail-close:hover { color: #e2e8f0; }
+
+        .feature-node rect { rx: 10; ry: 10; stroke-width: 2; cursor: pointer; transition: filter 0.15s; }
+        .feature-node text { fill: #e2e8f0; font-size: 12px; pointer-events: none; }
+        .feature-node .fn-count { fill: #94a3b8; font-size: 10px; }
+        .feature-node.selected rect { stroke: #38bdf8; stroke-width: 3; filter: drop-shadow(0 0 8px #38bdf8); }
+        .feature-node.complexity-simple rect { fill: #0f2918; stroke: #22c55e; }
+        .feature-node.complexity-medium rect { fill: #1e3a5f; stroke: #3b82f6; }
+        .feature-node.complexity-complex rect { fill: #3b1515; stroke: #ef4444; }
+        .feature-node.status-done rect { opacity: 0.5; }
+        .feature-node.status-done text { opacity: 0.6; }
+        .feature-node.status-in-progress rect { stroke-dasharray: 6,3; }
+        .feature-link { stroke: #475569; stroke-width: 1.5; fill: none; }
+        .feature-link.highlighted { stroke: #f59e0b; stroke-width: 2.5; }
+
+        .migration-order {
+            width: 200px; background: #1e293b; border-right: 1px solid #334155;
+            overflow-y: auto; padding: 12px; flex-shrink: 0;
+        }
+        .migration-order h4 { color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+        .migration-order-item {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: 4px 0;
+            background: #0f172a; border-radius: 6px; font-size: 12px; cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+        .migration-order-item:hover { background: #334155; }
+        .migration-order-item.active { background: #334155; border-color: #38bdf8; }
+        .migration-order-item.done { opacity: 0.5; border-left-color: #22c55e; }
+        .migration-order-item.in-progress { border-left-color: #3b82f6; }
+        .migration-order-item .order-num { color: #64748b; font-weight: bold; min-width: 20px; }
+        .migration-order-item .order-name { color: #e2e8f0; flex: 1; }
+        .migration-order-item .order-complexity { font-size: 8px; padding: 1px 5px; border-radius: 3px; }
+        .migration-order-item .order-complexity.simple { background: #0f2918; color: #22c55e; }
+        .migration-order-item .order-complexity.medium { background: #1e3a5f; color: #60a5fa; }
+        .migration-order-item .order-complexity.complex { background: #3b1515; color: #ef4444; }
+
+        .status-cycle-btn {
+            padding: 5px 12px; border-radius: 4px; border: 1px solid #475569;
+            background: #334155; color: #e2e8f0; font-size: 11px; cursor: pointer; margin-top: 4px;
+        }
+        .status-cycle-btn:hover { background: #475569; }
+        .status-cycle-btn.in-progress { border-color: #3b82f6; background: #1e3a5f; color: #60a5fa; }
+        .status-cycle-btn.done { border-color: #22c55e; background: #0f2918; color: #4ade80; }
+
+        .featuremap-legend {
+            display: flex; gap: 16px; align-items: center; font-size: 11px; color: #94a3b8;
+        }
+        .featuremap-legend .legend-item { display: flex; align-items: center; gap: 4px; }
+        .featuremap-legend .legend-swatch { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid; }
+
+        /* ======================== iOS SIMULATOR PANEL ======================== */
+        .ios-sim-panel {
+            display: none; position: fixed; top: 0; left: 320px; right: 0; bottom: 0;
+            background: #0f172a; z-index: 200; padding: 20px; overflow: hidden;
+            flex-direction: column;
+        }
+        .ios-sim-panel.active { display: flex; }
+        .ios-sim-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0; }
+        .ios-sim-body { display: flex; flex: 1; min-height: 0; gap: 16px; }
+        .ios-screen-list {
+            width: 176px; flex-shrink: 0; overflow-y: auto;
+            background: #1e293b; border-radius: 8px; padding: 8px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .ios-screen-thumb {
+            border: 2px solid transparent; border-radius: 6px; cursor: pointer;
+            background: #0f172a; overflow: hidden; transition: border-color 0.15s;
+        }
+        .ios-screen-thumb:hover { border-color: #818cf8; }
+        .ios-screen-thumb.active { border-color: #6366f1; box-shadow: 0 0 8px #6366f130; }
+        .ios-capture-area {
+            flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+        }
+        .ios-preview-wrap {
+            flex: 1; background: #1e293b; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; min-height: 200px;
+        }
+        .ios-preview-wrap img { max-height: 100%; max-width: 100%; object-fit: contain; border-radius: 4px; display: none; }
+        .ios-preview-placeholder {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #475569; font-size: 13px; gap: 8px; text-align: center; padding: 20px;
+        }
+        .ios-controls {
+            flex-shrink: 0; background: #1e293b; border-radius: 8px; padding: 12px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .ios-control-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .ios-select {
+            padding: 6px 10px; background: #0f172a; border: 1px solid #334155;
+            border-radius: 6px; color: #e2e8f0; font-size: 12px; flex: 1; min-width: 0;
+        }
+        .ios-btn {
+            padding: 7px 14px; border: 1px solid #475569; border-radius: 6px;
+            background: #334155; color: #e2e8f0; font-size: 12px; cursor: pointer; white-space: nowrap;
+        }
+        .ios-btn:hover { background: #475569; }
+        .ios-btn.primary { background: #4f46e5; border-color: #6366f1; color: white; }
+        .ios-btn.primary:hover { background: #6366f1; }
+        .ios-btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+        .ios-bridge-status { font-size: 11px; color: #64748b; }
+        .ios-bridge-status.ok { color: #22c55e; }
+        .node.ios-node rect { fill: #1a1a3a; stroke: #818cf8; stroke-width: 1.5; }
+        .node.ios-node.has-new rect { fill: #3b1515; stroke: #e87040; stroke-width: 2; }
+        .node.ios-node.has-review rect { fill: #1e3a5f; stroke: #3b82f6; stroke-width: 2; }
+        .node.ios-node.selected rect { stroke: #818cf8; stroke-width: 3; filter: drop-shadow(0 0 6px #818cf8); }
     </style>
 </head>
 <body>
@@ -485,6 +621,9 @@
                 <button class="sidebar-btn" onclick="toggleKanban()" style="background:#1e3a5f;border-color:#3b82f6;">
                     <span>&#128203;</span> Kanban Board
                 </button>
+                <button class="sidebar-btn" onclick="toggleFeatureMap()" style="background:#1a2e1a;border-color:#22c55e;">
+                    <span>&#128506;</span> Feature Map
+                </button>
                 <button class="sidebar-btn page-btn" onclick="togglePagePanel()">
                     <span>&#128221;</span> Page Requests
                 </button>
@@ -507,6 +646,7 @@
                 <button class="env-btn" data-device="tablet" onclick="setDevice('tablet')">&#128250;<br><small>Tablet</small></button>
                 <button class="env-btn" data-device="mobile" onclick="setDevice('mobile')">&#128241;<br><small>Mobile</small></button>
                 <button class="env-btn active" data-device="all" onclick="setDevice('all')">&#128065;<br><small>All</small></button>
+                <button class="env-btn" data-device="ios" onclick="setDevice('ios')" style="color:#818cf8;">&#127988;<br><small>iOS Sim</small></button>
             </div>
 
             <input type="text" class="search-box" placeholder="Search..." id="searchBox" style="width:100%;padding:8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;margin-bottom:10px;">
@@ -685,6 +825,79 @@
         </div>
     </div>
 
+    <!-- Feature Dependency Map -->
+    <div class="featuremap-container" id="featureMapBoard">
+        <div class="featuremap-header">
+            <h2>Feature Dependency Map</h2>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <div class="featuremap-legend">
+                    <div class="legend-item"><div class="legend-swatch" style="background:#0f2918;border-color:#22c55e;"></div> Simple</div>
+                    <div class="legend-item"><div class="legend-swatch" style="background:#1e3a5f;border-color:#3b82f6;"></div> Medium</div>
+                    <div class="legend-item"><div class="legend-swatch" style="background:#3b1515;border-color:#ef4444;"></div> Complex</div>
+                    <span style="color:#334155;">|</span>
+                    <div class="legend-item"><span>&#9898;</span> Not Started</div>
+                    <div class="legend-item"><span>&#128995;</span> In Progress</div>
+                    <div class="legend-item"><span>&#128994;</span> Done</div>
+                </div>
+                <button class="kanban-close" onclick="toggleFeatureMap()">Close</button>
+            </div>
+        </div>
+        <div class="featuremap-body">
+            <div class="migration-order" id="migrationOrderPanel">
+                <h4>Migration Order</h4>
+                <div id="migrationOrderList"></div>
+            </div>
+            <div class="featuremap-graph" id="featureGraphArea">
+                <svg id="featureMapSvg"></svg>
+            </div>
+            <div class="feature-detail" id="featureDetailPanel">
+                <div id="featureDetailContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- iOS Simulator Panel -->
+    <div class="ios-sim-panel" id="iosSimPanel">
+        <div class="ios-sim-header">
+            <h2 style="color:#818cf8;margin:0;font-size:18px;">&#127988; iOS Simulator</h2>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span class="ios-bridge-status" id="iosBridgeStatus">Not connected</span>
+                <button class="kanban-close" onclick="closeIosPanel()">Close</button>
+            </div>
+        </div>
+        <div class="ios-controls">
+            <div class="ios-control-row">
+                <select id="iosSimSelect" class="ios-select" onchange="onSimSelectorChange()">
+                    <option value="">Loading simulators...</option>
+                </select>
+                <button id="iosBootBtn" class="ios-btn" onclick="bootSelectedSim()">Boot</button>
+                <button class="ios-btn" onclick="fetchSimulators()" title="Refresh list">&#8635;</button>
+            </div>
+            <div class="ios-control-row">
+                <input type="text" id="iosScreenNameInput" class="ios-select" placeholder="Screen name (e.g. Home, Login, Settings)" style="flex:1;" />
+                <button id="iosCaptureBtn" class="ios-btn primary" onclick="captureSimScreen()">Capture Screen</button>
+            </div>
+        </div>
+        <div class="ios-sim-body">
+            <div style="display:flex;flex-direction:column;gap:8px;width:176px;flex-shrink:0;">
+                <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;padding:0 2px;">Captured Screens</div>
+                <div class="ios-screen-list" id="iosScreenList">
+                    <div style="color:#64748b;font-size:11px;text-align:center;padding:8px;">No screens yet</div>
+                </div>
+            </div>
+            <div class="ios-capture-area">
+                <div class="ios-preview-wrap" id="iosPreviewWrap">
+                    <img id="iosScreenPreview" src="" alt="Simulator screenshot" />
+                    <div class="ios-preview-placeholder" id="iosPreviewPlaceholder">
+                        <span style="font-size:40px;">&#128241;</span>
+                        <span>Navigate the simulator, name the screen above, then click Capture Screen</span>
+                        <span style="font-size:11px;color:#334155;">Requires: python3 sim-bridge.py running in a terminal</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ========================
         // PROJECT CONFIG (dynamic)
@@ -769,8 +982,12 @@
             pageRequests = [];
             try { pageRequests = JSON.parse(localStorage.getItem(getStorageKey('pages'))) || []; } catch(e) {}
 
+            // Load iOS screens for this project
+            loadIosScreens();
+
             // Re-render everything
             populateSidebar();
+            populateIosSidebar();
             drawDiagram();
             renderBugs();
             renderPageRequests();
@@ -916,6 +1133,9 @@
         function setDevice(device) {
             currentDevice = device;
             document.querySelectorAll('#deviceToggle .env-btn').forEach(b => b.classList.toggle('active', b.dataset.device === device));
+            if (device === 'ios') {
+                openIosPanel();
+            }
         }
 
         let previewWindow = null;
@@ -1177,6 +1397,7 @@
                 navContainer.appendChild(div);
             });
             populateSidebar();
+            populateIosSidebar();
             if (selectedPage) {
                 document.querySelectorAll('.nav-item').forEach(item => {
                     const titleEl = item.querySelector('.title');
@@ -1225,8 +1446,24 @@
                 });
             });
 
-            const maxX = Math.max(...nodeData.map(n => n.x)) + nodeWidth + 100;
-            const maxY = Math.max(...nodeData.map(n => n.y)) + nodeHeight + 100;
+            // Add iOS screen nodes in a separate column to the right
+            if (iosScreens && iosScreens.length > 0) {
+                const webMaxX = nodeData.length > 0 ? Math.max(...nodeData.map(n => n.x)) : 0;
+                const iosColX = webMaxX + nodeWidth + 60 + mapHSpacing;
+                iosScreens.forEach((screen, i) => {
+                    nodeData.push({
+                        path: screen.id,
+                        name: screen.name,
+                        category: 'ios',
+                        x: iosColX,
+                        y: startY + i * (nodeHeight + mapVSpacing),
+                        isIos: true,
+                    });
+                });
+            }
+
+            const maxX = nodeData.length > 0 ? Math.max(...nodeData.map(n => n.x)) + nodeWidth + 100 : 400;
+            const maxY = nodeData.length > 0 ? Math.max(...nodeData.map(n => n.y)) + nodeHeight + 100 : 400;
             svg.attr('viewBox', `0 0 ${maxX} ${maxY}`).style('width', '100%').style('height', '100%');
 
             if (!mapZoomBehavior) {
@@ -1243,11 +1480,19 @@
             const g = svg.append('g');
             if (mapCurrentTransform) g.attr('transform', mapCurrentTransform);
 
-            const labels = catKeys.map(cat => ({ x: catX[cat], y: 30, text: cat.toUpperCase() }));
+            // Also add iOS column label if iOS nodes exist
+            const iosNodes = nodeData.filter(n => n.isIos);
+            const iosLabelData = iosNodes.length > 0 ? [{ x: iosNodes[0].x, y: 30, text: 'IOS', isIos: true }] : [];
+
+            const labels = [
+                ...catKeys.map(cat => ({ x: catX[cat], y: 30, text: cat.toUpperCase() })),
+                ...iosLabelData
+            ];
 
             g.selectAll('.cat-label').data(labels).enter().append('text')
                 .attr('x', d => d.x).attr('y', d => d.y)
-                .attr('fill', '#94a3b8').attr('font-size', '12px').attr('font-weight', 'bold')
+                .attr('fill', d => d.isIos ? '#818cf8' : '#94a3b8')
+                .attr('font-size', '12px').attr('font-weight', 'bold')
                 .attr('text-decoration', 'underline')
                 .text(d => d.text);
 
@@ -1286,15 +1531,27 @@
             const nodes = g.selectAll('.node').data(nodeData).enter().append('g')
                 .attr('class', d => {
                     let cls = 'node';
+                    if (d.isIos) cls += ' ios-node';
                     const pageBugs = bugs.filter(b => b.page === d.path);
                     if (pageBugs.some(b => b.status === 'new')) cls += ' has-new';
                     else if (pageBugs.some(b => b.status === 'review')) cls += ' has-review';
-                    if (d.path === selectedPage) cls += ' selected';
+                    if (d.path === selectedPage || d.path === currentBugPage) cls += ' selected';
                     return cls;
                 })
                 .attr('data-path', d => d.path)
                 .attr('transform', d => `translate(${d.x},${d.y})`)
-                .on('click', (e, d) => { selectPage(d.path); openInNewWindow(getUrl(d.path), true); });
+                .on('click', (e, d) => {
+                    if (d.isIos) {
+                        openIosPanel();
+                        setTimeout(() => {
+                            const idx = iosScreens.findIndex(s => s.id === d.path);
+                            if (idx >= 0) selectIosScreenByName(idx);
+                        }, 300);
+                    } else {
+                        selectPage(d.path);
+                        openInNewWindow(getUrl(d.path), true);
+                    }
+                });
 
             nodes.append('rect').attr('width', nodeWidth).attr('height', nodeHeight + 2);
             nodes.append('text').attr('x', nodeWidth/2).attr('y', nodeHeight/2+5).attr('text-anchor', 'middle').text(d => d.name);
@@ -1406,6 +1663,10 @@
             bugPanel.style.left = leftPos;
             pagePanel.style.left = leftPos;
             kanban.style.left = leftPos;
+            const iosPanel = document.getElementById('iosSimPanel');
+            if (iosPanel) iosPanel.style.left = leftPos;
+            const featureMap = document.getElementById('featureMapBoard');
+            if (featureMap) featureMap.style.left = leftPos;
         }
 
         function toggleBugPanelTab() {
@@ -1846,7 +2107,9 @@
         }
 
         function defaultDevices() {
-            return currentDevice === 'all' ? ['desktop','tablet','mobile'] : [currentDevice];
+            if (currentDevice === 'all') return ['desktop','tablet','mobile'];
+            if (currentDevice === 'ios') return ['mobile'];
+            return [currentDevice];
         }
 
         function addBugForPage(path) {
@@ -1893,6 +2156,11 @@
             const board = document.getElementById('kanbanBoard');
             if (board.classList.contains('active')) {
                 board.classList.remove('active');
+                if (sidebarCollapsed) toggleSidebar();
+            }
+            const fmBoard = document.getElementById('featureMapBoard');
+            if (fmBoard && fmBoard.classList.contains('active')) {
+                fmBoard.classList.remove('active');
                 if (sidebarCollapsed) toggleSidebar();
             }
         }
@@ -2110,6 +2378,15 @@
         function openBugPage(bugId) {
             const bug = bugs.find(b => b.id === bugId);
             if (!bug) return;
+            if (bug.page && bug.page.startsWith('ios::')) {
+                const name = bug.page.replace('ios::', '');
+                openIosPanel();
+                setTimeout(() => {
+                    const idx = iosScreens.findIndex(s => s.name === name);
+                    if (idx >= 0) selectIosScreenByName(idx);
+                }, 300);
+                return;
+            }
             const devs = getBugDevices(bug);
             const url = getUrl(bug.page);
             if (devs.length === 3) openAllDeviceWindows(url, false);
@@ -2245,6 +2522,7 @@
             if (board.classList.contains('active')) {
                 localStorage.setItem(getStorageKey('kanban-open'), '1');
                 closeBugPanel();
+                document.getElementById('featureMapBoard').classList.remove('active');
                 if (!sidebarCollapsed) toggleSidebar();
                 populateKanbanPageFilter();
                 renderKanban();
@@ -2330,7 +2608,7 @@
                         <div class="kanban-card" draggable="true" data-bug-id="${bug.id}" tabindex="0" style="position:relative;"
                              ondragstart="kanbanDragStart(event, ${bug.id})" ondragend="kanbanDragEnd(event)"
                              onclick="selectKanbanCard(event, ${bug.id})" onkeydown="kanbanCardKeydown(event, ${bug.id})">
-                            <div style="display:flex;align-items:center;gap:0;line-height:1.4;"><span onclick="event.stopPropagation();copyBugId(${bug.id})" title="Copy Bug${shortId(bug)}" style="color:#64748b;font-weight:600;font-size:11px;cursor:pointer;padding:2px 4px;border-radius:3px;flex-shrink:0;" onmouseover="this.style.background='#1e293b';this.style.color='#e2e8f0'" onmouseout="this.style.background='';this.style.color='#64748b'">${shortId(bug)}</span><div class="card-page" onclick="event.stopPropagation();syncBugPanelToCard(${bug.id});openInNewWindow('${getUrl(bug.page)}')" style="display:flex;align-items:baseline;cursor:pointer;padding:2px 4px;border-radius:3px;flex:1;min-width:0;" onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background=''"><span style="text-decoration:underline;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${bug.page}</span></div><span style="margin-left:auto;display:flex;align-items:center;gap:1px;">${starFlagHtml}${skipHtml}</span></div>
+                            <div style="display:flex;align-items:center;gap:0;line-height:1.4;"><span onclick="event.stopPropagation();copyBugId(${bug.id})" title="Copy Bug${shortId(bug)}" style="color:#64748b;font-weight:600;font-size:11px;cursor:pointer;padding:2px 4px;border-radius:3px;flex-shrink:0;" onmouseover="this.style.background='#1e293b';this.style.color='#e2e8f0'" onmouseout="this.style.background='';this.style.color='#64748b'">${shortId(bug)}</span><div class="card-page" onclick="event.stopPropagation();cardPageClick(${bug.id})" style="display:flex;align-items:baseline;cursor:pointer;padding:2px 4px;border-radius:3px;flex:1;min-width:0;" onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background=''"><span style="text-decoration:underline;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${bug.page}</span></div><span style="margin-left:auto;display:flex;align-items:center;gap:1px;">${starFlagHtml}${skipHtml}</span></div>
                             ${bug.status === 'new' && bug.comments && bug.comments.length ? '<div style="font-size:10px;color:#f59e0b;background:#3b2a0a;padding:4px 8px;border-radius:4px;margin-bottom:4px;border-left:2px solid #f59e0b;">' + escHtml(bug.comments[bug.comments.length - 1].text) + '</div>' : ''}
                             <div class="card-text" onclick="kanbanEditText(event, ${bug.id})">${bug.text || '(no description)'}</div>
                             ${fixBoxHtml}
@@ -2502,6 +2780,23 @@
             return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
+        // Helper for kanban card page-click: opens iOS panel for ios:: pages, URL window otherwise
+        function cardPageClick(bugId) {
+            const bug = bugs.find(b => b.id === bugId);
+            if (!bug) return;
+            syncBugPanelToCard(bugId);
+            if (bug.page && bug.page.startsWith('ios::')) {
+                const name = bug.page.replace('ios::', '');
+                openIosPanel();
+                setTimeout(() => {
+                    const idx = iosScreens.findIndex(s => s.name === name);
+                    if (idx >= 0) selectIosScreenByName(idx);
+                }, 300);
+            } else {
+                openInNewWindow(getUrl(bug.page));
+            }
+        }
+
         function kanbanCommentKeydown(e, bugId) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -2542,6 +2837,7 @@
                 if (reviewBugs.length > 0) {
                     const top = reviewBugs[0];
                     syncBugPanelToCard(top.id);
+                    if (top.page && top.page.startsWith('ios::')) return; // iOS screens don't need a URL window
                     openInNewWindow(getUrl(top.page), true);
                 }
             }, 100);
@@ -2862,10 +3158,797 @@
         }
 
         // ========================
+        // FEATURE MAP
+        // ========================
+        let featureMapNodes = [];
+        let featureMapLinks = [];
+        let featureMapSimulation = null;
+        let selectedFeatureId = null;
+        let featureMigrationStatus = {};
+
+        function toggleFeatureMap() {
+            const board = document.getElementById('featureMapBoard');
+            board.classList.toggle('active');
+            if (board.classList.contains('active')) {
+                closeBugPanel();
+                document.getElementById('kanbanBoard').classList.remove('active');
+                document.getElementById('pagePanel').classList.remove('active');
+                if (!sidebarCollapsed) toggleSidebar();
+                loadFeatureMapData();
+                renderFeatureMap();
+                renderMigrationOrder();
+            } else {
+                if (sidebarCollapsed) toggleSidebar();
+                selectedFeatureId = null;
+                document.getElementById('featureDetailPanel').classList.remove('active');
+            }
+        }
+
+        function loadFeatureMapData() {
+            if (!projectConfig || !projectConfig.features) {
+                featureMapNodes = [];
+                featureMapLinks = [];
+                return;
+            }
+            featureMapNodes = projectConfig.features.map(f => ({...f}));
+            featureMapLinks = [];
+            featureMapNodes.forEach(feature => {
+                (feature.dependencies || []).forEach(depId => {
+                    featureMapLinks.push({ source: depId, target: feature.id });
+                });
+            });
+            try {
+                featureMigrationStatus = JSON.parse(localStorage.getItem(getStorageKey('feature-migration'))) || {};
+            } catch(e) { featureMigrationStatus = {}; }
+        }
+
+        function getFeatureStatus(id) {
+            return featureMigrationStatus[id] || 'not-started';
+        }
+
+        function renderFeatureMap() {
+            const container = document.getElementById('featureGraphArea');
+            const svg = d3.select('#featureMapSvg');
+            svg.selectAll('*').remove();
+            if (!featureMapNodes.length) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // Arrow marker
+            svg.append('defs').append('marker')
+                .attr('id', 'fm-arrow')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 28)
+                .attr('refY', 0)
+                .attr('markerWidth', 8)
+                .attr('markerHeight', 8)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-4L8,0L0,4')
+                .attr('fill', '#475569');
+
+            svg.append('defs').append('marker')
+                .attr('id', 'fm-arrow-hl')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 28)
+                .attr('refY', 0)
+                .attr('markerWidth', 8)
+                .attr('markerHeight', 8)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-4L8,0L0,4')
+                .attr('fill', '#f59e0b');
+
+            const g = svg.append('g');
+
+            // Zoom
+            const zoom = d3.zoom()
+                .scaleExtent([0.3, 3])
+                .on('zoom', (event) => g.attr('transform', event.transform));
+            svg.call(zoom);
+
+            // Links
+            const linkData = featureMapLinks.map(l => ({
+                source: l.source,
+                target: l.target
+            }));
+
+            const link = g.selectAll('.feature-link')
+                .data(linkData)
+                .enter().append('line')
+                .attr('class', 'feature-link')
+                .attr('marker-end', 'url(#fm-arrow)');
+
+            // Nodes
+            const nodeData = featureMapNodes.map(d => ({...d}));
+
+            const node = g.selectAll('.feature-node')
+                .data(nodeData, d => d.id)
+                .enter().append('g')
+                .attr('class', d => {
+                    const status = getFeatureStatus(d.id);
+                    return `feature-node complexity-${d.complexity}${status !== 'not-started' ? ' status-' + status : ''}${selectedFeatureId === d.id ? ' selected' : ''}`;
+                })
+                .call(d3.drag()
+                    .on('start', (event, d) => {
+                        if (!event.active) featureMapSimulation.alphaTarget(0.3).restart();
+                        d.fx = d.x; d.fy = d.y;
+                    })
+                    .on('drag', (event, d) => {
+                        d.fx = event.x; d.fy = event.y;
+                    })
+                    .on('end', (event, d) => {
+                        if (!event.active) featureMapSimulation.alphaTarget(0);
+                        d.fx = null; d.fy = null;
+                    })
+                )
+                .on('click', (event, d) => {
+                    event.stopPropagation();
+                    selectFeatureNode(d.id);
+                });
+
+            // Node rect
+            const nodeW = 140, nodeH = 50;
+            node.append('rect')
+                .attr('width', nodeW)
+                .attr('height', nodeH)
+                .attr('x', -nodeW/2)
+                .attr('y', -nodeH/2);
+
+            // Node label
+            node.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '0.35em')
+                .text(d => d.shortName);
+
+            // File count badge
+            node.append('text')
+                .attr('class', 'fn-count')
+                .attr('text-anchor', 'end')
+                .attr('x', nodeW/2 - 8)
+                .attr('y', nodeH/2 - 8)
+                .text(d => d.fileCount + ' files');
+
+            // Status dot
+            node.append('circle')
+                .attr('cx', nodeW/2 - 10)
+                .attr('cy', -nodeH/2 + 10)
+                .attr('r', 5)
+                .attr('fill', d => {
+                    const s = getFeatureStatus(d.id);
+                    return s === 'done' ? '#22c55e' : s === 'in-progress' ? '#3b82f6' : '#64748b';
+                })
+                .attr('stroke', '#0f172a')
+                .attr('stroke-width', 1.5);
+
+            // Click background to deselect
+            svg.on('click', () => {
+                selectedFeatureId = null;
+                d3.selectAll('.feature-node').classed('selected', false);
+                d3.selectAll('.feature-link').classed('highlighted', false).attr('marker-end', 'url(#fm-arrow)');
+                document.getElementById('featureDetailPanel').classList.remove('active');
+                renderMigrationOrder();
+            });
+
+            // Simulation
+            featureMapSimulation = d3.forceSimulation(nodeData)
+                .force('link', d3.forceLink(linkData).id(d => d.id).distance(180))
+                .force('charge', d3.forceManyBody().strength(-500))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collide', d3.forceCollide(90))
+                .on('tick', () => {
+                    link
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+                    node.attr('transform', d => `translate(${d.x},${d.y})`);
+                });
+
+            // Center the view after simulation settles
+            setTimeout(() => {
+                svg.call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(0.85));
+            }, 800);
+        }
+
+        function selectFeatureNode(featureId) {
+            selectedFeatureId = featureId;
+
+            d3.selectAll('.feature-node').classed('selected', d => d.id === featureId);
+            d3.selectAll('.feature-link')
+                .classed('highlighted', d => {
+                    const srcId = typeof d.source === 'object' ? d.source.id : d.source;
+                    const tgtId = typeof d.target === 'object' ? d.target.id : d.target;
+                    return srcId === featureId || tgtId === featureId;
+                })
+                .attr('marker-end', d => {
+                    const srcId = typeof d.source === 'object' ? d.source.id : d.source;
+                    const tgtId = typeof d.target === 'object' ? d.target.id : d.target;
+                    return (srcId === featureId || tgtId === featureId) ? 'url(#fm-arrow-hl)' : 'url(#fm-arrow)';
+                });
+
+            renderFeatureDetail(featureId);
+            renderMigrationOrder();
+        }
+
+        function renderFeatureDetail(featureId) {
+            const feature = featureMapNodes.find(f => f.id === featureId);
+            if (!feature) return;
+
+            const panel = document.getElementById('featureDetailPanel');
+            const content = document.getElementById('featureDetailContent');
+            const status = getFeatureStatus(featureId);
+            const statusLabel = status === 'done' ? 'Done' : status === 'in-progress' ? 'In Progress' : 'Not Started';
+            const statusClass = status === 'not-started' ? '' : status;
+            const statusEmoji = status === 'done' ? '&#128994;' : status === 'in-progress' ? '&#128995;' : '&#9898;';
+
+            // Find dependents (who depends on this feature)
+            const dependents = featureMapNodes.filter(f =>
+                (f.dependencies || []).includes(featureId)
+            );
+
+            // Find dependencies (what this feature depends on)
+            const deps = (feature.dependencies || []).map(depId =>
+                featureMapNodes.find(f => f.id === depId)
+            ).filter(Boolean);
+
+            const complexityColors = { simple: '#22c55e', medium: '#60a5fa', complex: '#ef4444' };
+
+            content.innerHTML = `
+                <button class="detail-close" onclick="document.getElementById('featureDetailPanel').classList.remove('active');selectedFeatureId=null;d3.selectAll('.feature-node').classed('selected',false);d3.selectAll('.feature-link').classed('highlighted',false).attr('marker-end','url(#fm-arrow)');renderMigrationOrder();">&times;</button>
+                <h3>${feature.name}</h3>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;color:${complexityColors[feature.complexity]};background:${feature.complexity === 'simple' ? '#0f2918' : feature.complexity === 'medium' ? '#1e3a5f' : '#3b1515'}">${feature.complexity.toUpperCase()}</span>
+                    <span style="color:#94a3b8;font-size:12px;">${feature.fileCount} files</span>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-label">Migration Status</div>
+                    <button class="status-cycle-btn ${statusClass}" onclick="cycleFeatureMigrationStatus('${featureId}')">
+                        ${statusEmoji} ${statusLabel}
+                    </button>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${feature.description}</div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-label">Key Files</div>
+                    ${feature.keyFiles.map(f => `<div class="detail-file">${f}</div>`).join('')}
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-label">Tech Stack</div>
+                    <div>${feature.techStack.map(t => `<span class="detail-tech">${t}</span>`).join('')}</div>
+                </div>
+
+                ${deps.length ? `
+                <div class="detail-section">
+                    <div class="detail-label">Depends On (${deps.length})</div>
+                    <div>${deps.map(d => `<span class="detail-dep outgoing" onclick="selectFeatureNode('${d.id}')">${d.shortName}</span>`).join('')}</div>
+                </div>` : ''}
+
+                ${dependents.length ? `
+                <div class="detail-section">
+                    <div class="detail-label">Depended On By (${dependents.length})</div>
+                    <div>${dependents.map(d => `<span class="detail-dep incoming" onclick="selectFeatureNode('${d.id}')">${d.shortName}</span>`).join('')}</div>
+                </div>` : ''}
+
+                <div class="detail-section">
+                    <div class="detail-label">Migration Notes</div>
+                    <div class="detail-notes">${feature.migrationNotes}</div>
+                </div>
+            `;
+
+            panel.classList.add('active');
+        }
+
+        function topologicalSort(features, links) {
+            const inDegree = {};
+            const adjList = {};
+            features.forEach(f => { inDegree[f.id] = 0; adjList[f.id] = []; });
+            links.forEach(l => {
+                const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+                const tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+                if (inDegree[tgtId] !== undefined) inDegree[tgtId]++;
+                if (adjList[srcId]) adjList[srcId].push(tgtId);
+            });
+            const queue = features.filter(f => inDegree[f.id] === 0).map(f => f.id);
+            const result = [];
+            while (queue.length > 0) {
+                // Sort queue by complexity (simple first) for deterministic output
+                queue.sort((a, b) => {
+                    const order = { simple: 0, medium: 1, complex: 2 };
+                    const fa = features.find(f => f.id === a);
+                    const fb = features.find(f => f.id === b);
+                    return (order[fa?.complexity] || 1) - (order[fb?.complexity] || 1);
+                });
+                const nodeId = queue.shift();
+                result.push(nodeId);
+                (adjList[nodeId] || []).forEach(neighbor => {
+                    inDegree[neighbor]--;
+                    if (inDegree[neighbor] === 0) queue.push(neighbor);
+                });
+            }
+            return result;
+        }
+
+        function renderMigrationOrder() {
+            const list = document.getElementById('migrationOrderList');
+            if (!featureMapNodes.length) { list.innerHTML = '<div style="color:#64748b;font-size:12px;padding:10px;">No features loaded</div>'; return; }
+
+            const order = topologicalSort(featureMapNodes, featureMapLinks);
+            list.innerHTML = order.map((id, i) => {
+                const f = featureMapNodes.find(n => n.id === id);
+                if (!f) return '';
+                const status = getFeatureStatus(id);
+                const statusClass = status === 'not-started' ? '' : status;
+                const emoji = status === 'done' ? '&#128994;' : status === 'in-progress' ? '&#128995;' : '&#9898;';
+                const activeClass = selectedFeatureId === id ? ' active' : '';
+                return `<div class="migration-order-item ${statusClass}${activeClass}" onclick="selectFeatureNode('${id}')">
+                    <span class="order-num">${i + 1}</span>
+                    <span class="order-name">${f.shortName}</span>
+                    <span class="order-complexity ${f.complexity}">${f.complexity}</span>
+                    <span>${emoji}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function cycleFeatureMigrationStatus(featureId) {
+            const current = featureMigrationStatus[featureId] || 'not-started';
+            const next = current === 'not-started' ? 'in-progress' : current === 'in-progress' ? 'done' : 'not-started';
+            featureMigrationStatus[featureId] = next;
+            localStorage.setItem(getStorageKey('feature-migration'), JSON.stringify(featureMigrationStatus));
+
+            // Update node classes
+            d3.selectAll('.feature-node').each(function(d) {
+                if (d.id === featureId) {
+                    const el = d3.select(this);
+                    el.classed('status-done', next === 'done')
+                      .classed('status-in-progress', next === 'in-progress');
+                    // Update status dot color
+                    el.select('circle')
+                      .attr('fill', next === 'done' ? '#22c55e' : next === 'in-progress' ? '#3b82f6' : '#64748b');
+                }
+            });
+
+            renderMigrationOrder();
+            if (selectedFeatureId === featureId) renderFeatureDetail(featureId);
+        }
+
+        // ========================
+        // iOS SIMULATOR
+        // ========================
+        const IOS_BRIDGE = 'http://127.0.0.1:8766';
+        let iosSimConnected = false;
+        let iosScreens = [];
+        let currentSimUdid = null;
+        let iosSimDevices = { booted: [], available: [] };
+
+        function getIosStorageKey() {
+            return getStorageKey('ios-screens');
+        }
+
+        function loadIosScreens() {
+            try {
+                iosScreens = JSON.parse(localStorage.getItem(getIosStorageKey())) || [];
+            } catch(e) { iosScreens = []; }
+        }
+
+        function saveIosScreens() {
+            localStorage.setItem(getIosStorageKey(), JSON.stringify(iosScreens));
+        }
+
+        async function checkBridgeStatus() {
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/status', { signal: AbortSignal.timeout(2000) });
+                if (res.ok) {
+                    const data = await res.json();
+                    iosSimConnected = true;
+                    if (data.booted && data.booted.length > 0 && !currentSimUdid) {
+                        currentSimUdid = data.booted[0].udid;
+                    }
+                    return true;
+                }
+            } catch(e) {}
+            iosSimConnected = false;
+            return false;
+        }
+
+        async function fetchSimulators() {
+            const ok = await checkBridgeStatus();
+            if (!ok) {
+                updateIosBridgeStatus('Bridge not running - start sim-bridge.py first');
+                renderIosSimSelector();
+                return;
+            }
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/simulators', { signal: AbortSignal.timeout(5000) });
+                if (res.ok) {
+                    iosSimDevices = await res.json();
+                    updateIosBridgeStatus('Connected');
+                    document.getElementById('iosBridgeStatus').classList.add('ok');
+                    renderIosSimSelector();
+                }
+            } catch(e) {
+                updateIosBridgeStatus('Bridge not reachable');
+            }
+        }
+
+        function renderIosSimSelector() {
+            const sel = document.getElementById('iosSimSelect');
+            if (!sel) return;
+            sel.innerHTML = '';
+
+            const booted = iosSimDevices.booted || [];
+            const available = iosSimDevices.available || [];
+
+            if (booted.length > 0) {
+                const og = document.createElement('optgroup');
+                og.label = 'Booted';
+                booted.forEach(sim => {
+                    const opt = document.createElement('option');
+                    opt.value = sim.udid;
+                    opt.textContent = sim.name + ' (' + sim.os + ')';
+                    if (sim.udid === currentSimUdid || (!currentSimUdid && booted[0] === sim)) opt.selected = true;
+                    og.appendChild(opt);
+                });
+                sel.appendChild(og);
+                if (!currentSimUdid && booted[0]) currentSimUdid = booted[0].udid;
+            }
+
+            if (available.length > 0) {
+                const og = document.createElement('optgroup');
+                og.label = 'Available (not booted)';
+                available.slice(0, 20).forEach(sim => {
+                    const opt = document.createElement('option');
+                    opt.value = sim.udid;
+                    opt.textContent = sim.name + ' (' + sim.os + ')';
+                    og.appendChild(opt);
+                });
+                sel.appendChild(og);
+            }
+
+            if (booted.length === 0 && available.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = iosSimConnected ? 'No simulators found' : 'Bridge not running';
+                sel.appendChild(opt);
+            }
+
+            onSimSelectorChange();
+        }
+
+        function onSimSelectorChange() {
+            const sel = document.getElementById('iosSimSelect');
+            const bootBtn = document.getElementById('iosBootBtn');
+            if (!sel || !bootBtn) return;
+            const selUdid = sel.value;
+            const isBooted = (iosSimDevices.booted || []).some(s => s.udid === selUdid);
+            bootBtn.textContent = isBooted ? 'Booted' : 'Boot';
+            bootBtn.disabled = isBooted;
+            if (isBooted) currentSimUdid = selUdid;
+        }
+
+        function updateIosBridgeStatus(msg) {
+            const el = document.getElementById('iosBridgeStatus');
+            if (!el) return;
+            el.textContent = msg;
+            const isOk = msg === 'Connected';
+            el.classList.toggle('ok', isOk);
+        }
+
+        async function bootSelectedSim() {
+            const sel = document.getElementById('iosSimSelect');
+            const udid = sel?.value;
+            if (!udid) return;
+
+            const btn = document.getElementById('iosBootBtn');
+            const origText = btn?.textContent;
+            if (btn) { btn.textContent = 'Booting...'; btn.disabled = true; }
+            updateIosBridgeStatus('Booting simulator...');
+
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/boot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ udid })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    currentSimUdid = udid;
+                    updateIosBridgeStatus('Booting - please wait...');
+                    setTimeout(() => fetchSimulators(), 4000);
+                } else {
+                    updateIosBridgeStatus('Boot failed: ' + (data.error || 'unknown'));
+                    if (btn) { btn.textContent = origText; btn.disabled = false; }
+                }
+            } catch(e) {
+                updateIosBridgeStatus('Bridge not running - start sim-bridge.py first');
+                if (btn) { btn.textContent = origText; btn.disabled = false; }
+            }
+        }
+
+        async function captureSimScreen() {
+            const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
+            if (!udid) {
+                updateIosBridgeStatus('Select a booted simulator first');
+                return;
+            }
+
+            const nameInput = document.getElementById('iosScreenNameInput');
+            const name = (nameInput?.value || '').trim() || ('Screen ' + (iosScreens.length + 1));
+
+            const btn = document.getElementById('iosCaptureBtn');
+            if (btn) { btn.textContent = 'Capturing...'; btn.disabled = true; }
+            updateIosPreview(null, 'Capturing...');
+
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/screenshot?udid=' + encodeURIComponent(udid), {
+                    signal: AbortSignal.timeout(15000)
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    updateIosPreview(data.image, null);
+
+                    const screenId = 'ios::' + name;
+                    const entry = { id: screenId, name, image: data.image, udid, capturedAt: new Date().toISOString() };
+                    const existingIdx = iosScreens.findIndex(s => s.name === name);
+                    if (existingIdx >= 0) {
+                        iosScreens[existingIdx] = entry;
+                    } else {
+                        iosScreens.push(entry);
+                        // Auto-advance screen name number
+                        if (nameInput) {
+                            const m = name.match(/^(.*?)(\d+)$/);
+                            if (m) nameInput.value = m[1] + (parseInt(m[2]) + 1);
+                        }
+                    }
+
+                    saveIosScreens();
+                    renderIosScreenList();
+                    currentBugPage = screenId;
+                    renderIosScreenList();
+                    drawDiagram();
+                    refreshSidebar();
+                    updateIosBridgeStatus('Captured: ' + name);
+                } else {
+                    updateIosBridgeStatus('Error: ' + (data.error || 'screenshot failed'));
+                    updateIosPreview(null, 'Screenshot failed: ' + (data.error || 'unknown'));
+                }
+            } catch(e) {
+                updateIosBridgeStatus('Bridge not running - start sim-bridge.py first');
+                updateIosPreview(null, 'Bridge not reachable. Is sim-bridge.py running?');
+            }
+
+            if (btn) { btn.textContent = 'Capture Screen'; btn.disabled = false; }
+        }
+
+        function updateIosPreview(imgSrc, msg) {
+            const preview = document.getElementById('iosScreenPreview');
+            const placeholder = document.getElementById('iosPreviewPlaceholder');
+            if (!preview || !placeholder) return;
+            if (imgSrc) {
+                preview.src = imgSrc;
+                preview.style.display = 'block';
+                placeholder.style.display = 'none';
+            } else {
+                preview.style.display = 'none';
+                placeholder.querySelector('span:nth-child(2)').textContent = msg || 'Navigate the simulator, name the screen above, then click Capture Screen';
+                placeholder.style.display = 'flex';
+            }
+        }
+
+        function renderIosScreenList() {
+            const list = document.getElementById('iosScreenList');
+            if (!list) return;
+            if (iosScreens.length === 0) {
+                list.innerHTML = '<div style="color:#64748b;font-size:11px;text-align:center;padding:8px;">No screens captured yet</div>';
+                return;
+            }
+            list.innerHTML = iosScreens.map((screen, i) => {
+                const newCount = bugs.filter(b => b.page === screen.id && b.status === 'new').length;
+                const reviewCount = bugs.filter(b => b.page === screen.id && b.status === 'review').length;
+                const isSelected = currentBugPage === screen.id;
+                const badges = [
+                    newCount > 0 ? `<span style="background:#ef4444;color:white;font-size:9px;padding:1px 5px;border-radius:8px;">${newCount}</span>` : '',
+                    reviewCount > 0 ? `<span style="background:#3b82f6;color:white;font-size:9px;padding:1px 5px;border-radius:8px;">${reviewCount}</span>` : '',
+                ].join('');
+                const safeName = escHtml(screen.name);
+                const safeId = escHtml(screen.id);
+                return `<div class="ios-screen-thumb${isSelected ? ' active' : ''}" onclick="selectIosScreenByName(${i})" title="${safeName}">
+                    <img src="${screen.image}" style="width:100%;display:block;" loading="lazy" />
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 4px 2px;gap:4px;">
+                        <span style="font-size:10px;color:#e2e8f0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName}</span>
+                        <span style="display:flex;gap:2px;">${badges}</span>
+                        <button onclick="event.stopPropagation();iosAddBugForScreen(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:0 2px;line-height:1;" title="Add bug">&#128027;</button>
+                        <button onclick="event.stopPropagation();deleteIosScreen(${i})" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:12px;padding:0 2px;line-height:1;" title="Delete">x</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function selectIosScreenByName(idx) {
+            const screen = iosScreens[idx];
+            if (!screen) return;
+            updateIosPreview(screen.image, null);
+            currentBugPage = screen.id;
+            renderIosScreenList();
+            showBugsForPage(screen.id);
+        }
+
+        function iosAddBugForScreen(idx) {
+            const screen = iosScreens[idx];
+            if (!screen) return;
+            closeIosPanel();
+            addBugForPage(screen.id);
+        }
+
+        function deleteIosScreen(idx) {
+            const screen = iosScreens[idx];
+            if (!screen) return;
+            iosScreens.splice(idx, 1);
+            saveIosScreens();
+            renderIosScreenList();
+            if (currentBugPage === screen.id) {
+                currentBugPage = null;
+                document.getElementById('bugPanel')?.classList.remove('active');
+            }
+            drawDiagram();
+            refreshSidebar();
+        }
+
+        function openIosPanel() {
+            const panel = document.getElementById('iosSimPanel');
+            if (!panel) return;
+            panel.classList.add('active');
+            document.getElementById('kanbanBoard').classList.remove('active');
+            document.getElementById('featureMapBoard').classList.remove('active');
+            closeBugPanel();
+            if (!sidebarCollapsed) toggleSidebar();
+            loadIosScreens();
+            renderIosScreenList();
+            updateIosBridgeStatus('Connecting...');
+            document.getElementById('iosBridgeStatus').classList.remove('ok');
+            checkBridgeStatus().then(ok => {
+                if (ok) {
+                    fetchSimulators();
+                } else {
+                    updateIosBridgeStatus('Bridge not running - start sim-bridge.py first');
+                    renderIosSimSelector();
+                }
+            });
+        }
+
+        function closeIosPanel() {
+            const panel = document.getElementById('iosSimPanel');
+            if (!panel) return;
+            panel.classList.remove('active');
+            if (sidebarCollapsed) toggleSidebar();
+        }
+
+        function populateIosSidebar() {
+            const navContainer = document.getElementById('nav-sections');
+            let iosSection = document.getElementById('nav-ios-screens');
+            if (iosSection) iosSection.remove();
+            if (!iosScreens || iosScreens.length === 0) return;
+
+            iosSection = document.createElement('div');
+            iosSection.id = 'nav-ios-screens';
+
+            const sectionBugs = bugs.filter(b => iosScreens.some(s => s.id === b.page));
+            const sNewCount = sectionBugs.filter(b => b.status === 'new').length;
+            const sReviewCount = sectionBugs.filter(b => b.status === 'review').length;
+
+            const isCollapsed = collapsedSections['nav-ios-screens'] || false;
+
+            const header = document.createElement('h2');
+            header.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;color:#818cf8;';
+            header.onclick = () => toggleSection('nav-ios-screens');
+
+            const arrow = document.createElement('span');
+            arrow.id = 'nav-ios-screens-arrow';
+            arrow.textContent = isCollapsed ? '▸' : '▾';
+            arrow.style.cssText = 'font-size:12px;width:12px;';
+            header.appendChild(arrow);
+
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = 'IOS SCREENS';
+            labelSpan.style.flex = '1';
+            header.appendChild(labelSpan);
+
+            if (sNewCount > 0) {
+                const badge = document.createElement('span');
+                badge.style.cssText = 'background:#ef4444;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                badge.textContent = sNewCount;
+                header.appendChild(badge);
+            }
+            if (sReviewCount > 0) {
+                const badge = document.createElement('span');
+                badge.style.cssText = 'background:#3b82f6;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                badge.textContent = sReviewCount;
+                header.appendChild(badge);
+            }
+
+            iosSection.appendChild(header);
+
+            const itemsDiv = document.createElement('div');
+            itemsDiv.id = 'nav-ios-screens-items';
+            itemsDiv.style.display = isCollapsed ? 'none' : 'block';
+
+            iosScreens.forEach(screen => {
+                const pageBugs = bugs.filter(b => b.page === screen.id);
+                const newCount = pageBugs.filter(b => b.status === 'new').length;
+                const reviewCount = pageBugs.filter(b => b.status === 'review').length;
+
+                const a = document.createElement('a');
+                a.className = 'nav-item' + (currentBugPage === screen.id ? ' active' : '');
+
+                const icon = document.createElement('span');
+                icon.style.cssText = 'color:#818cf8;font-size:10px;margin-right:4px;';
+                icon.textContent = '▢';
+                a.appendChild(icon);
+
+                const title = document.createElement('span');
+                title.className = 'title';
+                title.textContent = screen.name;
+                title.style.color = '#818cf8';
+                title.onclick = () => { openIosPanel(); setTimeout(() => { const idx = iosScreens.findIndex(s => s.id === screen.id); if (idx >= 0) selectIosScreenByName(idx); }, 300); };
+                a.appendChild(title);
+
+                if (newCount > 0 || reviewCount > 0) {
+                    const countSpan = document.createElement('span');
+                    countSpan.style.cssText = 'display:flex;gap:3px;margin-right:6px;';
+                    if (newCount > 0) {
+                        const badge = document.createElement('span');
+                        badge.style.cssText = 'background:#ef4444;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                        badge.textContent = newCount;
+                        badge.onclick = (e) => { e.stopPropagation(); const idx = iosScreens.findIndex(s => s.id === screen.id); if (idx >= 0) { openIosPanel(); setTimeout(() => selectIosScreenByName(idx), 300); } };
+                        countSpan.appendChild(badge);
+                    }
+                    if (reviewCount > 0) {
+                        const badge = document.createElement('span');
+                        badge.style.cssText = 'background:#3b82f6;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
+                        badge.textContent = reviewCount;
+                        badge.onclick = (e) => { e.stopPropagation(); const idx = iosScreens.findIndex(s => s.id === screen.id); if (idx >= 0) { openIosPanel(); setTimeout(() => selectIosScreenByName(idx), 300); } };
+                        countSpan.appendChild(badge);
+                    }
+                    a.appendChild(countSpan);
+                }
+
+                itemsDiv.appendChild(a);
+            });
+
+            iosSection.appendChild(itemsDiv);
+            navContainer.appendChild(iosSection);
+        }
+
+        // ========================
         // INIT
         // ========================
         // Try to load last config from localStorage, or auto-load project.json
         (async function init() {
+            // ?config=<path-or-url> loads a specific project config and takes
+            // precedence over the last-used one, so a single Debug Map can serve
+            // many projects (e.g. ?config=ilios.project.json). Falls through to
+            // the normal last-config / project.json flow if it fails.
+            const cfgParam = new URLSearchParams(location.search).get('config');
+            if (cfgParam) {
+                try {
+                    const res = await fetch(cfgParam);
+                    if (res.ok) {
+                        const config = await res.json();
+                        if (config.name && config.pages) {
+                            applyProjectConfig(config);
+                            return;
+                        }
+                    }
+                } catch(e) {}
+            }
             const lastConfig = localStorage.getItem('debugmap-last-config');
             if (lastConfig) {
                 try {
@@ -2896,6 +3979,11 @@
             getBugs: () => bugs,
             addBug: (page, text) => { bugs.push({id:Date.now(), num:nextBugNum(), page, text, status:'new'}); saveBugs(); renderBugs(); },
             setStatus: (page, text, status) => { const b = bugs.find(x=>x.page===page&&x.text===text); if(b){b.status=status; saveBugs(); renderBugs();} }
+        };
+        window.featureSystem = {
+            getFeatures: () => featureMapNodes,
+            getMigrationStatus: () => featureMigrationStatus,
+            setStatus: (id, status) => { featureMigrationStatus[id] = status; localStorage.setItem(getStorageKey('feature-migration'), JSON.stringify(featureMigrationStatus)); }
         };
     </script>
 </body>
