@@ -590,6 +590,35 @@
         .ios-btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
         .ios-bridge-status { font-size: 11px; color: #64748b; }
         .ios-bridge-status.ok { color: #22c55e; }
+        .ios-app-status { font-size: 11px; color: #64748b; }
+        .ios-app-status.ok { color: #22c55e; }
+        .ios-screen-thumb.placeholder {
+            display: flex; align-items: center; justify-content: center;
+            min-height: 60px; background: #16162e; color: #64748b; font-size: 20px;
+        }
+        .ios-check { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; cursor: pointer; user-select: none; white-space: nowrap; }
+        .ios-check input { accent-color: #6366f1; }
+        .ios-console {
+            flex-shrink: 0; display: none; flex-direction: column; margin-top: 10px;
+            border: 1px solid #334155; border-radius: 6px; background: #0a0f1a; height: 220px;
+        }
+        .ios-console.open { display: flex; }
+        .ios-console-bar {
+            display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+            border-bottom: 1px solid #1e293b; flex-shrink: 0;
+        }
+        .ios-console-bar input {
+            flex: 1; background: #16213a; border: 1px solid #334155; color: #e2e8f0;
+            border-radius: 4px; padding: 2px 8px; font-size: 11px;
+        }
+        .ios-console-body {
+            flex: 1; overflow-y: auto; padding: 6px 8px; margin: 0;
+            font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; line-height: 1.45;
+            color: #9fe8b1; white-space: pre-wrap; word-break: break-all;
+        }
+        .ios-console-body .log-err { color: #f87171; }
+        .ios-console-body .log-warn { color: #facc15; }
+        .ios-console-body .log-meta { color: #64748b; }
         .node.ios-node rect { fill: #1a1a3a; stroke: #818cf8; stroke-width: 1.5; }
         .node.ios-node.has-new rect { fill: #3b1515; stroke: #e87040; stroke-width: 2; }
         .node.ios-node.has-review rect { fill: #1e3a5f; stroke: #3b82f6; stroke-width: 2; }
@@ -874,13 +903,23 @@
                 <button class="ios-btn" onclick="fetchSimulators()" title="Refresh list">&#8635;</button>
             </div>
             <div class="ios-control-row">
+                <input type="text" id="iosBundleInput" class="ios-select" list="iosAppsList" placeholder="App bundle id (e.g. com.myapp.ios)" style="flex:1;" />
+                <datalist id="iosAppsList"></datalist>
+                <button id="iosLaunchBtn" class="ios-btn primary" onclick="launchIosApp()">Launch</button>
+                <button class="ios-btn" onclick="terminateIosApp()">Stop</button>
+                <span class="ios-app-status" id="iosAppStatus"></span>
+            </div>
+            <div class="ios-control-row">
                 <input type="text" id="iosScreenNameInput" class="ios-select" placeholder="Screen name (e.g. Home, Login, Settings)" style="flex:1;" />
                 <button id="iosCaptureBtn" class="ios-btn primary" onclick="captureSimScreen()">Capture Screen</button>
+                <label class="ios-check" title="Refresh the preview from the simulator every 1.2s"><input type="checkbox" id="iosLiveToggle" onchange="toggleIosLive()" /> Live</label>
+                <label class="ios-check" title="Auto-capture a screen after opening its deep link"><input type="checkbox" id="iosAutoCapture" checked /> Auto-capture</label>
+                <button class="ios-btn" onclick="toggleIosConsole()" title="Show app console output">Console</button>
             </div>
         </div>
         <div class="ios-sim-body">
             <div style="display:flex;flex-direction:column;gap:8px;width:176px;flex-shrink:0;">
-                <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;padding:0 2px;">Captured Screens</div>
+                <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;padding:0 2px;">App Screens</div>
                 <div class="ios-screen-list" id="iosScreenList">
                     <div style="color:#64748b;font-size:11px;text-align:center;padding:8px;">No screens yet</div>
                 </div>
@@ -890,11 +929,24 @@
                     <img id="iosScreenPreview" src="" alt="Simulator screenshot" />
                     <div class="ios-preview-placeholder" id="iosPreviewPlaceholder">
                         <span style="font-size:40px;">&#128241;</span>
-                        <span>Navigate the simulator, name the screen above, then click Capture Screen</span>
+                        <span>Click a screen to drive the simulator there, or navigate by hand and Capture Screen</span>
                         <span style="font-size:11px;color:#334155;">Requires: python3 sim-bridge.py running in a terminal</span>
                     </div>
                 </div>
+                <div style="display:flex;gap:8px;margin-top:8px;justify-content:center;">
+                    <button id="iosDeepLinkBtn" class="ios-btn" style="display:none;" onclick="openSelectedDeepLink()">Open in Sim &#8599;</button>
+                </div>
             </div>
+        </div>
+        <div class="ios-console" id="iosConsole">
+            <div class="ios-console-bar">
+                <span style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Console</span>
+                <input type="text" id="iosLogFilter" placeholder="filter..." oninput="renderIosConsole()" />
+                <button class="ios-btn" onclick="fetchIosOslog()" title="Pull os_log / Logger output (unified log, last 3 min)">os_log</button>
+                <button class="ios-btn" onclick="clearIosConsole()">Clear</button>
+                <button class="ios-btn" onclick="toggleIosConsole()">&#215;</button>
+            </div>
+            <pre class="ios-console-body" id="iosConsoleBody"></pre>
         </div>
     </div>
 
@@ -932,6 +984,12 @@
 
             // Navigation
             navigation = config.navigation || [];
+
+            // iOS app config (optional): bundleId, urlScheme, screens with deep links
+            iosConfig = config.ios || null;
+            if (iosConfig && iosConfig.screens) {
+                iosConfig.screens.forEach(s => { if (s.description) pageDescriptions['ios::' + s.name] = s.description; });
+            }
 
             // Categories (discover from pages)
             categories = {};
@@ -1026,7 +1084,7 @@
             reader.onload = function(ev) {
                 try {
                     const config = JSON.parse(ev.target.result);
-                    if (!config.name || !config.pages) throw new Error('Invalid project.json: needs "name" and "pages" fields');
+                    if (!config.name || (!config.pages && !config.ios)) throw new Error('Invalid project.json: needs "name" plus "pages" and/or "ios"');
                     applyProjectConfig(config);
                 } catch(err) {
                     document.getElementById('loadError').textContent = 'Error: ' + err.message;
@@ -1040,7 +1098,7 @@
                 const res = await fetch('project.json');
                 if (!res.ok) throw new Error('Could not load project.json (HTTP ' + res.status + ')');
                 const config = await res.json();
-                if (!config.name || !config.pages) throw new Error('Invalid project.json');
+                if (!config.name || (!config.pages && !config.ios)) throw new Error('Invalid project.json');
                 applyProjectConfig(config);
             } catch(err) {
                 document.getElementById('loadError').textContent = 'Error: ' + err.message;
@@ -1430,7 +1488,7 @@
             const nodeWidth = 120, nodeHeight = 36;
 
             const catKeys = Object.keys(categories);
-            if (catKeys.length === 0) {
+            if (catKeys.length === 0 && getMergedIosScreens().length === 0) {
                 svg.selectAll('*').remove();
                 return;
             }
@@ -1446,19 +1504,33 @@
                 });
             });
 
-            // Add iOS screen nodes in a separate column to the right
-            if (iosScreens && iosScreens.length > 0) {
+            // Add iOS screen nodes (config-defined + captured) in columns to the right,
+            // one column per iOS category, mirroring how web pages are laid out.
+            const iosMergedForMap = getMergedIosScreens();
+            const iosCatX = {};
+            if (iosMergedForMap.length > 0) {
                 const webMaxX = nodeData.length > 0 ? Math.max(...nodeData.map(n => n.x)) : 0;
-                const iosColX = webMaxX + nodeWidth + 60 + mapHSpacing;
-                iosScreens.forEach((screen, i) => {
-                    nodeData.push({
-                        path: screen.id,
-                        name: screen.name,
-                        category: 'ios',
-                        x: iosColX,
-                        y: startY + i * (nodeHeight + mapVSpacing),
-                        isIos: true,
+                let colX = webMaxX + nodeWidth + 60 + mapHSpacing;
+                const iosCats = {};
+                iosMergedForMap.forEach(s => {
+                    const cat = s.category || 'screens';
+                    if (!iosCats[cat]) iosCats[cat] = [];
+                    iosCats[cat].push(s);
+                });
+                Object.keys(iosCats).forEach(cat => {
+                    iosCatX[cat] = colX;
+                    iosCats[cat].forEach((screen, i) => {
+                        nodeData.push({
+                            path: screen.id,
+                            name: screen.name,
+                            category: 'ios',
+                            iosCategory: cat,
+                            x: colX,
+                            y: startY + i * (nodeHeight + mapVSpacing),
+                            isIos: true,
+                        });
                     });
+                    colX += nodeWidth + mapHSpacing;
                 });
             }
 
@@ -1480,9 +1552,12 @@
             const g = svg.append('g');
             if (mapCurrentTransform) g.attr('transform', mapCurrentTransform);
 
-            // Also add iOS column label if iOS nodes exist
-            const iosNodes = nodeData.filter(n => n.isIos);
-            const iosLabelData = iosNodes.length > 0 ? [{ x: iosNodes[0].x, y: 30, text: 'IOS', isIos: true }] : [];
+            // Also add iOS column labels if iOS nodes exist (one per iOS category)
+            const iosLabelData = Object.keys(iosCatX).map(cat => ({
+                x: iosCatX[cat], y: 30,
+                text: cat === 'screens' ? 'IOS' : 'IOS · ' + cat.toUpperCase(),
+                isIos: true
+            }));
 
             const labels = [
                 ...catKeys.map(cat => ({ x: catX[cat], y: 30, text: cat.toUpperCase() })),
@@ -1496,10 +1571,18 @@
                 .attr('text-decoration', 'underline')
                 .text(d => d.text);
 
-            const linkData = navigation.map(([from, to]) => ({
-                source: nodeData.find(n => n.path === from),
-                target: nodeData.find(n => n.path === to)
-            })).filter(l => l.source && l.target);
+            // iOS flow edges from config: pairs of screen names, e.g. [["Home","Login"]]
+            const iosNav = (iosConfig && iosConfig.navigation) || [];
+            const linkData = [
+                ...navigation.map(([from, to]) => ({
+                    source: nodeData.find(n => n.path === from),
+                    target: nodeData.find(n => n.path === to)
+                })),
+                ...iosNav.map(([from, to]) => ({
+                    source: nodeData.find(n => n.path === 'ios::' + from),
+                    target: nodeData.find(n => n.path === 'ios::' + to)
+                }))
+            ].filter(l => l.source && l.target);
 
             g.selectAll('.link').data(linkData).enter().append('path')
                 .attr('class', 'link')
@@ -1543,10 +1626,7 @@
                 .on('click', (e, d) => {
                     if (d.isIos) {
                         openIosPanel();
-                        setTimeout(() => {
-                            const idx = iosScreens.findIndex(s => s.id === d.path);
-                            if (idx >= 0) selectIosScreenByName(idx);
-                        }, 300);
+                        setTimeout(() => selectIosScreenById(d.path), 300);
                     } else {
                         selectPage(d.path);
                         openInNewWindow(getUrl(d.path), true);
@@ -2379,12 +2459,8 @@
             const bug = bugs.find(b => b.id === bugId);
             if (!bug) return;
             if (bug.page && bug.page.startsWith('ios::')) {
-                const name = bug.page.replace('ios::', '');
                 openIosPanel();
-                setTimeout(() => {
-                    const idx = iosScreens.findIndex(s => s.name === name);
-                    if (idx >= 0) selectIosScreenByName(idx);
-                }, 300);
+                setTimeout(() => selectIosScreenById(bug.page, { navigate: false }), 300);
                 return;
             }
             const devs = getBugDevices(bug);
@@ -2786,12 +2862,8 @@
             if (!bug) return;
             syncBugPanelToCard(bugId);
             if (bug.page && bug.page.startsWith('ios::')) {
-                const name = bug.page.replace('ios::', '');
                 openIosPanel();
-                setTimeout(() => {
-                    const idx = iosScreens.findIndex(s => s.name === name);
-                    if (idx >= 0) selectIosScreenByName(idx);
-                }, 300);
+                setTimeout(() => selectIosScreenById(bug.page, { navigate: false }), 300);
             } else {
                 openInNewWindow(getUrl(bug.page));
             }
@@ -3524,9 +3596,18 @@
         // ========================
         const IOS_BRIDGE = 'http://127.0.0.1:8766';
         let iosSimConnected = false;
-        let iosScreens = [];
+        let iosScreens = [];          // captured screenshots (persisted per project)
+        let iosConfig = null;         // config.ios section: bundleId, urlScheme, screens, navigation
+        let iosMerged = [];           // config screens merged with captures (render order)
         let currentSimUdid = null;
         let iosSimDevices = { booted: [], available: [] };
+        let iosSelectedId = null;
+        let iosLiveTimer = null;
+        let iosLiveBusy = false;
+        let iosConsoleTimer = null;
+        let iosLogLines = [];
+        let iosAppsCache = [];
+        let iosAppExecutable = null;
 
         function getIosStorageKey() {
             return getStorageKey('ios-screens');
@@ -3540,6 +3621,39 @@
 
         function saveIosScreens() {
             localStorage.setItem(getIosStorageKey(), JSON.stringify(iosScreens));
+        }
+
+        // Config-defined screens + ad-hoc captures as one list. Config screens keep
+        // their deep links and categories; a capture with the same name supplies the
+        // thumbnail. Ad-hoc captures not in the config get their own column.
+        function getMergedIosScreens() {
+            const merged = [];
+            const seen = new Set();
+            const configScreens = (iosConfig && iosConfig.screens) || [];
+            configScreens.forEach(cs => {
+                const id = 'ios::' + cs.name;
+                const cap = iosScreens.find(s => s.id === id || s.name === cs.name);
+                merged.push({
+                    id, name: cs.name,
+                    image: cap ? cap.image : null,
+                    deepLink: cs.deepLink || null,
+                    description: cs.description || '',
+                    category: cs.category || 'screens',
+                    fromConfig: true,
+                    capturedAt: cap ? cap.capturedAt : null,
+                });
+                seen.add(id);
+            });
+            iosScreens.forEach(s => {
+                if (seen.has(s.id)) return;
+                merged.push({
+                    id: s.id, name: s.name, image: s.image, deepLink: null,
+                    description: '', category: configScreens.length ? 'captured' : 'screens',
+                    fromConfig: false, capturedAt: s.capturedAt,
+                });
+            });
+            iosMerged = merged;
+            return merged;
         }
 
         async function checkBridgeStatus() {
@@ -3576,6 +3690,35 @@
             } catch(e) {
                 updateIosBridgeStatus('Bridge not reachable');
             }
+        }
+
+        async function fetchIosApps() {
+            const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
+            if (!udid || !iosSimConnected) return;
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/apps?udid=' + encodeURIComponent(udid), { signal: AbortSignal.timeout(15000) });
+                const data = await res.json();
+                if (!data.ok) return;
+                iosAppsCache = data.apps || [];
+                const dl = document.getElementById('iosAppsList');
+                if (dl) {
+                    dl.innerHTML = '';
+                    iosAppsCache.forEach(a => {
+                        const o = document.createElement('option');
+                        o.value = a.bundleId;
+                        o.label = a.name + (a.type === 'User' ? '' : ' (system)');
+                        dl.appendChild(o);
+                    });
+                }
+                resolveIosExecutable();
+            } catch(e) {}
+        }
+
+        function resolveIosExecutable() {
+            const bundle = document.getElementById('iosBundleInput')?.value.trim();
+            if (!bundle) return;
+            const m = iosAppsCache.find(a => a.bundleId === bundle);
+            if (m && m.executable) iosAppExecutable = m.executable;
         }
 
         function renderIosSimSelector() {
@@ -3641,6 +3784,13 @@
             el.classList.toggle('ok', isOk);
         }
 
+        function setIosAppStatus(msg) {
+            const el = document.getElementById('iosAppStatus');
+            if (!el) return;
+            el.textContent = msg;
+            el.classList.toggle('ok', msg === 'running');
+        }
+
         async function bootSelectedSim() {
             const sel = document.getElementById('iosSimSelect');
             const udid = sel?.value;
@@ -3661,7 +3811,7 @@
                 if (data.ok) {
                     currentSimUdid = udid;
                     updateIosBridgeStatus('Booting - please wait...');
-                    setTimeout(() => fetchSimulators(), 4000);
+                    setTimeout(() => { fetchSimulators().then(() => fetchIosApps()); }, 4000);
                 } else {
                     updateIosBridgeStatus('Boot failed: ' + (data.error || 'unknown'));
                     if (btn) { btn.textContent = origText; btn.disabled = false; }
@@ -3672,7 +3822,120 @@
             }
         }
 
-        async function captureSimScreen() {
+        // --- App under test: launch / stop / deep links ---
+        async function launchIosApp() {
+            const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
+            const bundleId = document.getElementById('iosBundleInput')?.value.trim();
+            if (!udid || !bundleId) { setIosAppStatus('pick a sim and bundle id'); return; }
+
+            const btn = document.getElementById('iosLaunchBtn');
+            if (btn) { btn.textContent = 'Launching...'; btn.disabled = true; }
+            setIosAppStatus('launching...');
+
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/launch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ udid, bundleId })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    if (data.executable) iosAppExecutable = data.executable;
+                    setIosAppStatus('running');
+                    const consoleEl = document.getElementById('iosConsole');
+                    if (consoleEl && !consoleEl.classList.contains('open')) toggleIosConsole();
+                    const live = document.getElementById('iosLiveToggle');
+                    if (live && !live.checked) { live.checked = true; toggleIosLive(); }
+                } else {
+                    setIosAppStatus('launch failed');
+                    updateIosBridgeStatus('Launch failed: ' + (data.error || 'unknown'));
+                }
+            } catch(e) {
+                setIosAppStatus('bridge not running');
+            }
+            if (btn) { btn.textContent = 'Launch'; btn.disabled = false; }
+        }
+
+        async function terminateIosApp() {
+            const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
+            const bundleId = document.getElementById('iosBundleInput')?.value.trim();
+            if (!udid || !bundleId) return;
+            try {
+                await fetch(IOS_BRIDGE + '/api/terminate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ udid, bundleId })
+                });
+                setIosAppStatus('stopped');
+            } catch(e) {}
+        }
+
+        async function openIosDeepLink(url) {
+            const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
+            if (!udid || !url) return false;
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/openurl', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ udid, url })
+                });
+                const data = await res.json();
+                if (!data.ok) updateIosBridgeStatus('Deep link failed: ' + (data.error || 'unknown'));
+                return !!data.ok;
+            } catch(e) {
+                updateIosBridgeStatus('Bridge not running - start sim-bridge.py first');
+                return false;
+            }
+        }
+
+        function openSelectedDeepLink() {
+            const screen = iosMerged.find(s => s.id === iosSelectedId);
+            if (screen && screen.deepLink) openIosDeepLink(screen.deepLink);
+        }
+
+        function updateDeepLinkBtn(screen) {
+            const btn = document.getElementById('iosDeepLinkBtn');
+            if (!btn) return;
+            if (screen && screen.deepLink) {
+                btn.style.display = '';
+                btn.textContent = 'Open in Sim ↗ ' + screen.deepLink;
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
+        // --- Screen selection: clicking a screen node drives the simulator there,
+        //     the way clicking a page node opens the page URL. ---
+        function selectIosScreenById(id, opts = {}) {
+            const merged = getMergedIosScreens();
+            const screen = merged.find(s => s.id === id);
+            if (!screen) return;
+            iosSelectedId = id;
+            currentBugPage = id;
+            const nameInput = document.getElementById('iosScreenNameInput');
+            if (nameInput) nameInput.value = screen.name;
+            if (screen.image && !iosLiveOn()) updateIosPreview(screen.image, null);
+            else if (!screen.image && !iosLiveOn()) updateIosPreview(null, 'No capture yet - open the screen in the sim, then Capture Screen');
+            renderIosScreenList();
+            showBugsForPage(id);
+            updateDeepLinkBtn(screen);
+
+            if (opts.navigate !== false && screen.deepLink && iosSimConnected) {
+                openIosDeepLink(screen.deepLink).then(ok => {
+                    if (ok && document.getElementById('iosAutoCapture')?.checked) {
+                        setTimeout(() => captureSimScreen(screen.name), 1400);
+                    }
+                });
+            }
+        }
+
+        function selectIosScreenByName(idx) {
+            const merged = getMergedIosScreens();
+            const screen = merged[idx];
+            if (screen) selectIosScreenById(screen.id);
+        }
+
+        async function captureSimScreen(forcedName) {
             const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
             if (!udid) {
                 updateIosBridgeStatus('Select a booted simulator first');
@@ -3680,11 +3943,13 @@
             }
 
             const nameInput = document.getElementById('iosScreenNameInput');
-            const name = (nameInput?.value || '').trim() || ('Screen ' + (iosScreens.length + 1));
+            const name = (typeof forcedName === 'string' && forcedName)
+                || (nameInput?.value || '').trim()
+                || ('Screen ' + (iosScreens.length + 1));
 
             const btn = document.getElementById('iosCaptureBtn');
             if (btn) { btn.textContent = 'Capturing...'; btn.disabled = true; }
-            updateIosPreview(null, 'Capturing...');
+            if (!iosLiveOn()) updateIosPreview(null, 'Capturing...');
 
             try {
                 const res = await fetch(IOS_BRIDGE + '/api/screenshot?udid=' + encodeURIComponent(udid), {
@@ -3702,15 +3967,16 @@
                         iosScreens[existingIdx] = entry;
                     } else {
                         iosScreens.push(entry);
-                        // Auto-advance screen name number
-                        if (nameInput) {
+                        // Auto-advance ad-hoc numbered names (Screen 1 -> Screen 2)
+                        const isConfigScreen = ((iosConfig && iosConfig.screens) || []).some(s => s.name === name);
+                        if (nameInput && !isConfigScreen && !forcedName) {
                             const m = name.match(/^(.*?)(\d+)$/);
                             if (m) nameInput.value = m[1] + (parseInt(m[2]) + 1);
                         }
                     }
 
                     saveIosScreens();
-                    renderIosScreenList();
+                    iosSelectedId = screenId;
                     currentBugPage = screenId;
                     renderIosScreenList();
                     drawDiagram();
@@ -3718,11 +3984,11 @@
                     updateIosBridgeStatus('Captured: ' + name);
                 } else {
                     updateIosBridgeStatus('Error: ' + (data.error || 'screenshot failed'));
-                    updateIosPreview(null, 'Screenshot failed: ' + (data.error || 'unknown'));
+                    if (!iosLiveOn()) updateIosPreview(null, 'Screenshot failed: ' + (data.error || 'unknown'));
                 }
             } catch(e) {
                 updateIosBridgeStatus('Bridge not running - start sim-bridge.py first');
-                updateIosPreview(null, 'Bridge not reachable. Is sim-bridge.py running?');
+                if (!iosLiveOn()) updateIosPreview(null, 'Bridge not reachable. Is sim-bridge.py running?');
             }
 
             if (btn) { btn.textContent = 'Capture Screen'; btn.disabled = false; }
@@ -3738,66 +4004,166 @@
                 placeholder.style.display = 'none';
             } else {
                 preview.style.display = 'none';
-                placeholder.querySelector('span:nth-child(2)').textContent = msg || 'Navigate the simulator, name the screen above, then click Capture Screen';
+                placeholder.querySelector('span:nth-child(2)').textContent = msg || 'Click a screen to drive the simulator there, or navigate by hand and Capture Screen';
                 placeholder.style.display = 'flex';
             }
         }
 
+        // --- Live view: mirror the simulator screen into the preview ---
+        function iosLiveOn() {
+            return !!document.getElementById('iosLiveToggle')?.checked;
+        }
+
+        function toggleIosLive() {
+            if (iosLiveTimer) { clearInterval(iosLiveTimer); iosLiveTimer = null; }
+            if (iosLiveOn()) {
+                iosLiveTick();
+                iosLiveTimer = setInterval(iosLiveTick, 1200);
+            } else {
+                const s = iosMerged.find(x => x.id === iosSelectedId);
+                if (s && s.image) updateIosPreview(s.image, null);
+            }
+        }
+
+        async function iosLiveTick() {
+            const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
+            if (!udid || !iosSimConnected || iosLiveBusy) return;
+            iosLiveBusy = true;
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/screenshot?udid=' + encodeURIComponent(udid), { signal: AbortSignal.timeout(8000) });
+                const data = await res.json();
+                if (data.ok && iosLiveOn()) updateIosPreview(data.image, null);
+            } catch(e) {}
+            iosLiveBusy = false;
+        }
+
+        // --- Console: tail the launched app's stdout/stderr via the bridge ---
+        function toggleIosConsole() {
+            const el = document.getElementById('iosConsole');
+            if (!el) return;
+            const open = !el.classList.contains('open');
+            el.classList.toggle('open', open);
+            if (iosConsoleTimer) { clearInterval(iosConsoleTimer); iosConsoleTimer = null; }
+            if (open) {
+                iosConsoleTick();
+                iosConsoleTimer = setInterval(iosConsoleTick, 2000);
+            }
+        }
+
+        async function iosConsoleTick() {
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/logs?lines=500', { signal: AbortSignal.timeout(5000) });
+                const data = await res.json();
+                if (data.ok) {
+                    iosLogLines = data.lines || [];
+                    if (data.bundleId) setIosAppStatus(data.running ? 'running' : 'stopped');
+                    renderIosConsole();
+                }
+            } catch(e) {}
+        }
+
+        function renderIosConsole() {
+            const body = document.getElementById('iosConsoleBody');
+            if (!body) return;
+            const filter = (document.getElementById('iosLogFilter')?.value || '').toLowerCase();
+            const lines = filter ? iosLogLines.filter(l => l.toLowerCase().includes(filter)) : iosLogLines;
+            const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+            body.innerHTML = lines.map(l => {
+                const cls = /\berror\b|fatal|exception|crash/i.test(l) ? 'log-err'
+                          : /\bwarn(ing)?\b/i.test(l) ? 'log-warn'
+                          : l.startsWith('---') ? 'log-meta' : '';
+                const safe = escHtml(l);
+                return cls ? '<span class="' + cls + '">' + safe + '</span>' : safe;
+            }).join('\n');
+            if (atBottom) body.scrollTop = body.scrollHeight;
+        }
+
+        function clearIosConsole() {
+            iosLogLines = [];
+            renderIosConsole();
+        }
+
+        async function fetchIosOslog() {
+            const udid = currentSimUdid || document.getElementById('iosSimSelect')?.value;
+            if (!udid || !iosSimConnected) return;
+            resolveIosExecutable();
+            const bundle = document.getElementById('iosBundleInput')?.value.trim() || '';
+            const process = iosAppExecutable || bundle.split('.').pop();
+            if (!process) { updateIosBridgeStatus('Set a bundle id first'); return; }
+            iosLogLines.push('--- os_log (' + process + ', last 3 min) ---');
+            renderIosConsole();
+            try {
+                const res = await fetch(IOS_BRIDGE + '/api/oslog?udid=' + encodeURIComponent(udid) + '&process=' + encodeURIComponent(process) + '&minutes=3', { signal: AbortSignal.timeout(60000) });
+                const data = await res.json();
+                if (data.ok) iosLogLines.push(...(data.lines || []), '--- end os_log ---');
+                else iosLogLines.push('--- os_log error: ' + (data.error || 'unknown') + ' ---');
+            } catch(e) {
+                iosLogLines.push('--- os_log failed: bridge not reachable ---');
+            }
+            renderIosConsole();
+        }
+
+        // --- Screen list (left rail of the panel) ---
         function renderIosScreenList() {
             const list = document.getElementById('iosScreenList');
             if (!list) return;
-            if (iosScreens.length === 0) {
-                list.innerHTML = '<div style="color:#64748b;font-size:11px;text-align:center;padding:8px;">No screens captured yet</div>';
+            const merged = getMergedIosScreens();
+            if (merged.length === 0) {
+                list.innerHTML = '<div style="color:#64748b;font-size:11px;text-align:center;padding:8px;">No screens yet.<br>Define them in the config or Capture Screen.</div>';
                 return;
             }
-            list.innerHTML = iosScreens.map((screen, i) => {
+            list.innerHTML = merged.map((screen, i) => {
                 const newCount = bugs.filter(b => b.page === screen.id && b.status === 'new').length;
                 const reviewCount = bugs.filter(b => b.page === screen.id && b.status === 'review').length;
-                const isSelected = currentBugPage === screen.id;
+                const isSelected = iosSelectedId === screen.id;
                 const badges = [
                     newCount > 0 ? `<span style="background:#ef4444;color:white;font-size:9px;padding:1px 5px;border-radius:8px;">${newCount}</span>` : '',
                     reviewCount > 0 ? `<span style="background:#3b82f6;color:white;font-size:9px;padding:1px 5px;border-radius:8px;">${reviewCount}</span>` : '',
                 ].join('');
                 const safeName = escHtml(screen.name);
-                const safeId = escHtml(screen.id);
-                return `<div class="ios-screen-thumb${isSelected ? ' active' : ''}" onclick="selectIosScreenByName(${i})" title="${safeName}">
-                    <img src="${screen.image}" style="width:100%;display:block;" loading="lazy" />
+                const thumb = screen.image
+                    ? `<img src="${screen.image}" style="width:100%;display:block;" loading="lazy" />`
+                    : `<div class="ios-screen-thumb-ph" style="display:flex;align-items:center;justify-content:center;min-height:56px;background:#16162e;color:#475569;font-size:18px;">&#128241;</div>`;
+                const linkDot = screen.deepLink ? `<span title="Has deep link" style="color:#818cf8;font-size:9px;">&#128279;</span>` : '';
+                return `<div class="ios-screen-thumb${isSelected ? ' active' : ''}" onclick="selectIosScreenByName(${i})" title="${safeName}${screen.description ? ' - ' + escHtml(screen.description) : ''}">
+                    ${thumb}
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 4px 2px;gap:4px;">
                         <span style="font-size:10px;color:#e2e8f0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName}</span>
+                        ${linkDot}
                         <span style="display:flex;gap:2px;">${badges}</span>
                         <button onclick="event.stopPropagation();iosAddBugForScreen(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:0 2px;line-height:1;" title="Add bug">&#128027;</button>
-                        <button onclick="event.stopPropagation();deleteIosScreen(${i})" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:12px;padding:0 2px;line-height:1;" title="Delete">x</button>
+                        <button onclick="event.stopPropagation();deleteIosScreen(${i})" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:12px;padding:0 2px;line-height:1;" title="${screen.fromConfig ? 'Clear capture' : 'Delete'}">x</button>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        function selectIosScreenByName(idx) {
-            const screen = iosScreens[idx];
-            if (!screen) return;
-            updateIosPreview(screen.image, null);
-            currentBugPage = screen.id;
-            renderIosScreenList();
-            showBugsForPage(screen.id);
-        }
-
         function iosAddBugForScreen(idx) {
-            const screen = iosScreens[idx];
+            const merged = getMergedIosScreens();
+            const screen = merged[idx];
             if (!screen) return;
             closeIosPanel();
             addBugForPage(screen.id);
         }
 
         function deleteIosScreen(idx) {
-            const screen = iosScreens[idx];
+            const merged = getMergedIosScreens();
+            const screen = merged[idx];
             if (!screen) return;
-            iosScreens.splice(idx, 1);
-            saveIosScreens();
-            renderIosScreenList();
-            if (currentBugPage === screen.id) {
-                currentBugPage = null;
-                document.getElementById('bugPanel')?.classList.remove('active');
+            // Config screens stay on the map; deleting just clears their capture.
+            const capIdx = iosScreens.findIndex(s => s.id === screen.id || s.name === screen.name);
+            if (capIdx >= 0) {
+                iosScreens.splice(capIdx, 1);
+                saveIosScreens();
             }
+            if (!screen.fromConfig && iosSelectedId === screen.id) {
+                iosSelectedId = null;
+                if (currentBugPage === screen.id) {
+                    currentBugPage = null;
+                    document.getElementById('bugPanel')?.classList.remove('active');
+                }
+            }
+            renderIosScreenList();
             drawDiagram();
             refreshSidebar();
         }
@@ -3811,12 +4177,24 @@
             closeBugPanel();
             if (!sidebarCollapsed) toggleSidebar();
             loadIosScreens();
+
+            // Prefill the app under test from the project config
+            const bundleInput = document.getElementById('iosBundleInput');
+            if (bundleInput && !bundleInput.value && iosConfig && iosConfig.bundleId) {
+                bundleInput.value = iosConfig.bundleId;
+            }
+
             renderIosScreenList();
             updateIosBridgeStatus('Connecting...');
             document.getElementById('iosBridgeStatus').classList.remove('ok');
-            checkBridgeStatus().then(ok => {
+            checkBridgeStatus().then(async ok => {
                 if (ok) {
-                    fetchSimulators();
+                    await fetchSimulators();
+                    fetchIosApps();
+                    // Show the simulator screen right away, like a device preview
+                    const live = document.getElementById('iosLiveToggle');
+                    if (live && currentSimUdid && !live.checked) live.checked = true;
+                    toggleIosLive();
                 } else {
                     updateIosBridgeStatus('Bridge not running - start sim-bridge.py first');
                     renderIosSimSelector();
@@ -3828,6 +4206,8 @@
             const panel = document.getElementById('iosSimPanel');
             if (!panel) return;
             panel.classList.remove('active');
+            if (iosLiveTimer) { clearInterval(iosLiveTimer); iosLiveTimer = null; }
+            if (iosConsoleTimer) { clearInterval(iosConsoleTimer); iosConsoleTimer = null; }
             if (sidebarCollapsed) toggleSidebar();
         }
 
@@ -3835,12 +4215,13 @@
             const navContainer = document.getElementById('nav-sections');
             let iosSection = document.getElementById('nav-ios-screens');
             if (iosSection) iosSection.remove();
-            if (!iosScreens || iosScreens.length === 0) return;
+            const merged = getMergedIosScreens();
+            if (merged.length === 0) return;
 
             iosSection = document.createElement('div');
             iosSection.id = 'nav-ios-screens';
 
-            const sectionBugs = bugs.filter(b => iosScreens.some(s => s.id === b.page));
+            const sectionBugs = bugs.filter(b => merged.some(s => s.id === b.page));
             const sNewCount = sectionBugs.filter(b => b.status === 'new').length;
             const sReviewCount = sectionBugs.filter(b => b.status === 'review').length;
 
@@ -3857,7 +4238,7 @@
             header.appendChild(arrow);
 
             const labelSpan = document.createElement('span');
-            labelSpan.textContent = 'IOS SCREENS';
+            labelSpan.textContent = (iosConfig && iosConfig.appName ? iosConfig.appName.toUpperCase() + ' (IOS)' : 'IOS SCREENS');
             labelSpan.style.flex = '1';
             header.appendChild(labelSpan);
 
@@ -3880,7 +4261,7 @@
             itemsDiv.id = 'nav-ios-screens-items';
             itemsDiv.style.display = isCollapsed ? 'none' : 'block';
 
-            iosScreens.forEach(screen => {
+            merged.forEach(screen => {
                 const pageBugs = bugs.filter(b => b.page === screen.id);
                 const newCount = pageBugs.filter(b => b.status === 'new').length;
                 const reviewCount = pageBugs.filter(b => b.status === 'review').length;
@@ -3890,14 +4271,14 @@
 
                 const icon = document.createElement('span');
                 icon.style.cssText = 'color:#818cf8;font-size:10px;margin-right:4px;';
-                icon.textContent = '▢';
+                icon.textContent = screen.image ? '▣' : '▢';
                 a.appendChild(icon);
 
                 const title = document.createElement('span');
                 title.className = 'title';
                 title.textContent = screen.name;
                 title.style.color = '#818cf8';
-                title.onclick = () => { openIosPanel(); setTimeout(() => { const idx = iosScreens.findIndex(s => s.id === screen.id); if (idx >= 0) selectIosScreenByName(idx); }, 300); };
+                title.onclick = () => { openIosPanel(); setTimeout(() => selectIosScreenById(screen.id), 300); };
                 a.appendChild(title);
 
                 if (newCount > 0 || reviewCount > 0) {
@@ -3907,14 +4288,14 @@
                         const badge = document.createElement('span');
                         badge.style.cssText = 'background:#ef4444;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
                         badge.textContent = newCount;
-                        badge.onclick = (e) => { e.stopPropagation(); const idx = iosScreens.findIndex(s => s.id === screen.id); if (idx >= 0) { openIosPanel(); setTimeout(() => selectIosScreenByName(idx), 300); } };
+                        badge.onclick = (e) => { e.stopPropagation(); openIosPanel(); setTimeout(() => selectIosScreenById(screen.id, { navigate: false }), 300); };
                         countSpan.appendChild(badge);
                     }
                     if (reviewCount > 0) {
                         const badge = document.createElement('span');
                         badge.style.cssText = 'background:#3b82f6;color:white;font-size:9px;padding:2px 5px;border-radius:8px;cursor:pointer;';
                         badge.textContent = reviewCount;
-                        badge.onclick = (e) => { e.stopPropagation(); const idx = iosScreens.findIndex(s => s.id === screen.id); if (idx >= 0) { openIosPanel(); setTimeout(() => selectIosScreenByName(idx), 300); } };
+                        badge.onclick = (e) => { e.stopPropagation(); openIosPanel(); setTimeout(() => selectIosScreenById(screen.id, { navigate: false }), 300); };
                         countSpan.appendChild(badge);
                     }
                     a.appendChild(countSpan);
@@ -3942,7 +4323,7 @@
                     const res = await fetch(cfgParam);
                     if (res.ok) {
                         const config = await res.json();
-                        if (config.name && config.pages) {
+                        if (config.name && (config.pages || config.ios)) {
                             applyProjectConfig(config);
                             return;
                         }
@@ -3953,7 +4334,7 @@
             if (lastConfig) {
                 try {
                     const config = JSON.parse(lastConfig);
-                    if (config.name && config.pages) {
+                    if (config.name && (config.pages || config.ios)) {
                         applyProjectConfig(config);
                         return;
                     }
@@ -3964,7 +4345,7 @@
                 const res = await fetch('project.json');
                 if (res.ok) {
                     const config = await res.json();
-                    if (config.name && config.pages) {
+                    if (config.name && (config.pages || config.ios)) {
                         applyProjectConfig(config);
                         return;
                     }

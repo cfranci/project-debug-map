@@ -1,0 +1,39 @@
+{
+  "name": "My Project",
+  "environments": {
+    "local": "http://localhost:3000",
+    "staging": "https://staging.example.com",
+    "production": "https://example.com"
+  },
+  "pages": [
+    { "path": "/", "name": "Home", "category": "public", "description": "Public homepage" },
+    { "path": "/login", "name": "Login", "category": "auth", "description": "Login page" },
+    { "path": "/signup", "name": "Sign Up", "category": "auth", "description": "Registration page" },
+    { "path": "/dashboard", "name": "Dashboard", "category": "protected", "description": "Main dashboard" },
+    { "path": "/settings", "name": "Settings", "category": "protected", "description": "User settings" },
+    { "path": "/admin", "name": "Admin", "category": "admin", "description": "Admin panel" }
+  ],
+  "navigation": [
+    ["/", "/login"],
+    ["/", "/signup"],
+    ["/login", "/dashboard"],
+    ["/signup", "/dashboard"],
+    ["/dashboard", "/settings"],
+    ["/dashboard", "/admin"]
+  ],
+  "ios": {
+    "appName": "My App",
+    "bundleId": "com.example.myapp",
+    "urlScheme": "myapp",
+    "simulator": "iPhone 16e",
+    "screens": [
+      { "name": "Home", "deepLink": "myapp:///", "category": "core", "description": "Landing screen" },
+      { "name": "Login", "deepLink": "myapp:///login", "category": "auth", "description": "Sign in screen" },
+      { "name": "Settings", "deepLink": "myapp:///settings", "category": "core", "description": "App settings" }
+    ],
+    "navigation": [
+      ["Home", "Login"],
+      ["Home", "Settings"]
+    ]
+  }
+}
