@@ -21,6 +21,7 @@ TARGETS=(
 
 declare -A TUNNEL_PID
 declare -A TUNNEL_URL
+declare -A FAILS
 
 start_tunnel() {
   local port="$1"
@@ -60,6 +61,27 @@ while true; do
         report_env "$slug" "$label" "${TUNNEL_URL[$port]}" "$port"
       else
         echo "$(date '+%F %T') [$port] tunnel failed to produce URL" >> "$LOGDIR/keepalive.log"
+      fi
+      FAILS[$port]=0
+      continue
+    fi
+    # process alive != tunnel alive: quick tunnels expire their hostname while
+    # cloudflared sits in a retry loop. Probe the URL; two straight misses = re-mint.
+    url="${TUNNEL_URL[$port]}"
+    if [ -n "$url" ]; then
+      code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$url" 2>/dev/null)
+      if [ "$code" = "000" ] || [ "$code" = "502" ] || [ "$code" = "530" ]; then
+        FAILS[$port]=$(( ${FAILS[$port]:-0} + 1 ))
+        echo "$(date '+%F %T') [$port] health $code (strike ${FAILS[$port]}/2) $url" >> "$LOGDIR/keepalive.log"
+        if [ "${FAILS[$port]}" -ge 2 ]; then
+          kill "$pid" 2>/dev/null
+          FAILS[$port]=0
+          if start_tunnel "$port"; then
+            report_env "$slug" "$label" "${TUNNEL_URL[$port]}" "$port"
+          fi
+        fi
+      else
+        FAILS[$port]=0
       fi
     fi
   done
