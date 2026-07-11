@@ -1,0 +1,12 @@
+name = "ready-debug-map"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/*.project.json"]
+
+[[kv_namespaces]]
+binding = "BUGS"
+id = "803cb4eb05d94aa9a21b75df0f09a291"

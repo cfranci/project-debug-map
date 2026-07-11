@@ -1,1 +1,8 @@
 __pycache__/
+# internal project configs + bug data stay local (public repo)
+*.project.json
+!project.example.json
+board-bugs-restore.json
+import-*.json
+supabase/
+sync-worker/.sync-key

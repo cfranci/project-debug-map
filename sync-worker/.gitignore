@@ -1,0 +1,4 @@
+.sync-key
+public/
+node_modules/
+.wrangler/

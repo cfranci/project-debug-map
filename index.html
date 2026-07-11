@@ -4366,6 +4366,122 @@
             getMigrationStatus: () => featureMigrationStatus,
             setStatus: (id, status) => { featureMigrationStatus[id] = status; localStorage.setItem(getStorageKey('feature-migration'), JSON.stringify(featureMigrationStatus)); }
         };
+
+        // ========================
+        // REMOTE SYNC (shared team bug store)
+        // Active when served with ?key= (from the sync worker) or ?sync=<base>&key=.
+        // Without those params behavior is unchanged: pure localStorage.
+        // ========================
+        let syncBase = null, syncKey = null;
+        const _syncedIds = new Set();
+        const _pendingDeletes = new Set();
+        let _pushSnapshot = new Map();
+        let _pushTimer = null, _pollTimer = null, _pushing = false;
+        (function initSync() {
+            const q = new URLSearchParams(location.search);
+            syncKey = q.get('key');
+            const explicit = q.get('sync');
+            if (explicit) syncBase = explicit.replace(/\/$/, '');
+            else if (syncKey && location.protocol.startsWith('http')) syncBase = location.origin;
+            if (!syncBase || !syncKey) return;
+
+            const origSave = saveBugs;
+            saveBugs = function () { origSave(); schedulePush(); };
+            const origDelete = deleteBug;
+            deleteBug = function (id) {
+                if (_syncedIds.has(id)) _pendingDeletes.add(id);
+                origDelete(id);
+            };
+
+            const wait = setInterval(() => {
+                if (typeof storagePrefix === 'string' && storagePrefix) {
+                    clearInterval(wait);
+                    pullRemote(true);
+                    _pollTimer = setInterval(() => { if (!document.hidden) pullRemote(false); }, 5000);
+                }
+            }, 400);
+        })();
+
+        function syncProjectSlug() { return storagePrefix.replace(/^debugmap-/, ''); }
+        function syncStatusNote(text, color) {
+            const status = document.getElementById('syncStatus');
+            if (status) { status.textContent = text; status.style.color = color || '#38bdf8'; }
+        }
+
+        async function pullRemote(initial) {
+            try {
+                const res = await fetch(syncBase + '/api/bugs?project=' + encodeURIComponent(syncProjectSlug()), {
+                    headers: { 'x-debug-key': syncKey }
+                });
+                if (!res.ok) { syncStatusNote('Sync auth failed', '#ef4444'); return; }
+                const remote = await res.json();
+                mergeRemote(remote, initial);
+            } catch (e) { syncStatusNote('Sync offline', '#f59e0b'); }
+        }
+
+        function mergeRemote(remote, initial) {
+            const tomb = new Set(remote.tombstones || []);
+            const remoteById = new Map((remote.bugs || []).map(b => [b.id, b]));
+            let changed = false;
+
+            bugs = bugs.filter(b => {
+                if (tomb.has(b.id)) { changed = true; return false; }
+                if (_syncedIds.has(b.id) && !remoteById.has(b.id) && !_pendingDeletes.has(b.id)) { changed = true; return false; }
+                return true;
+            });
+            const localById = new Map(bugs.map(b => [b.id, b]));
+            for (const [id, rb] of remoteById) {
+                const lb = localById.get(id);
+                if (!lb) { bugs.push(rb); changed = true; }
+                else if ((rb.updated || 0) > (lb.updated || 0)) { Object.assign(lb, rb); changed = true; }
+                _syncedIds.add(id);
+                _pushSnapshot.set(id, JSON.stringify(remoteById.get(id)));
+            }
+            if (changed) {
+                localStorage.setItem(getStorageKey('bugs'), JSON.stringify(bugs));
+                _prevSnapshot = JSON.stringify(bugs);
+                try { renderBugs(); } catch (e) {}
+                try { if (typeof updateStats === 'function') updateStats(); } catch (e) {}
+            }
+            syncStatusNote('Synced ' + new Date().toLocaleTimeString(), '#22c55e');
+            const unsynced = bugs.filter(b => !_syncedIds.has(b.id) && b.text && b.text.trim());
+            if (initial && (unsynced.length || _pendingDeletes.size)) schedulePush();
+        }
+
+        function schedulePush() {
+            if (!syncBase) return;
+            clearTimeout(_pushTimer);
+            _pushTimer = setTimeout(pushRemote, 1200);
+        }
+
+        async function pushRemote() {
+            if (_pushing) { schedulePush(); return; }
+            const upserts = [];
+            for (const b of bugs) {
+                if (!b.text || !b.text.trim()) continue;
+                const snap = JSON.stringify(b);
+                if (_pushSnapshot.get(b.id) !== snap) {
+                    b.updated = Date.now();
+                    upserts.push(b);
+                }
+            }
+            const deletes = [..._pendingDeletes];
+            if (!upserts.length && !deletes.length) return;
+            _pushing = true;
+            try {
+                const res = await fetch(syncBase + '/api/bugs?project=' + encodeURIComponent(syncProjectSlug()), {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json', 'x-debug-key': syncKey },
+                    body: JSON.stringify({ upserts, deletes })
+                });
+                if (res.ok) {
+                    for (const b of upserts) { _syncedIds.add(b.id); _pushSnapshot.set(b.id, JSON.stringify(b)); }
+                    for (const id of deletes) _pendingDeletes.delete(id);
+                    syncStatusNote('Synced ' + new Date().toLocaleTimeString(), '#22c55e');
+                } else { syncStatusNote('Sync push failed', '#ef4444'); }
+            } catch (e) { syncStatusNote('Sync offline', '#f59e0b'); }
+            _pushing = false;
+        }
     </script>
 </body>
 </html>
