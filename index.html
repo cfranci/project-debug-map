@@ -4394,7 +4394,10 @@
             };
 
             const wait = setInterval(() => {
-                if (typeof storagePrefix === 'string' && storagePrefix) {
+                // Wait for the PROJECT prefix (config applied), not the 'debugmap'
+                // default — pulling before that syncs against the wrong store and
+                // leaves the board empty until the next poll re-renders.
+                if (typeof storagePrefix === 'string' && storagePrefix.startsWith('debugmap-')) {
                     clearInterval(wait);
                     pullRemote(true);
                     _pollTimer = setInterval(() => { if (!document.hidden) pullRemote(false); }, 5000);
@@ -4442,6 +4445,8 @@
                 _prevSnapshot = JSON.stringify(bugs);
                 try { renderBugs(); } catch (e) {}
                 try { if (typeof updateStats === 'function') updateStats(); } catch (e) {}
+                // Kanban is a separate pane; refresh it too if it's open.
+                try { if (typeof renderKanban === 'function') renderKanban(); } catch (e) {}
             }
             syncStatusNote('Synced ' + new Date().toLocaleTimeString(), '#22c55e');
             const unsynced = bugs.filter(b => !_syncedIds.has(b.id) && b.text && b.text.trim());
