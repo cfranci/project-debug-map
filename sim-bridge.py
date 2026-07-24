@@ -27,13 +27,13 @@ import base64
 import threading
 from urllib.parse import urlparse, parse_qs
 
-PORT = 8766
-HOST = "127.0.0.1"
+PORT = int(os.environ.get("SIM_BRIDGE_PORT", "8766"))
+HOST = os.environ.get("SIM_BRIDGE_HOST", "127.0.0.1")
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Bridge-Key",
 }
 
 # One console-attached app at a time (per bridge). Guarded by _console_lock.
@@ -329,6 +329,21 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def check_key(self):
+        """When SIM_BRIDGE_KEY is set (i.e. the bridge is tunneled off-box),
+        every request must carry it via ?key= or X-Bridge-Key. Unset = local
+        use, open as before. The bridge shells out to simctl, so an exposed
+        unauthenticated instance is remote control of this Mac's simulators."""
+        required = os.environ.get("SIM_BRIDGE_KEY", "")
+        if not required:
+            return True
+        parsed = urlparse(self.path)
+        supplied = parse_qs(parsed.query).get("key", [None])[0] or self.headers.get("X-Bridge-Key", "")
+        if supplied == required:
+            return True
+        self.send_json({"ok": False, "error": "missing or bad bridge key"}, 401)
+        return False
+
     def do_OPTIONS(self):
         self.send_response(200)
         for k, v in CORS_HEADERS.items():
@@ -336,6 +351,8 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if not self.check_key():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         qs = parse_qs(parsed.query)
@@ -400,6 +417,8 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             self.send_json({"ok": False, "error": "Not found"}, 404)
 
     def do_POST(self):
+        if not self.check_key():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 

@@ -6,3 +6,4 @@ board-bugs-restore.json
 import-*.json
 supabase/
 sync-worker/.sync-key
+.bridge-key

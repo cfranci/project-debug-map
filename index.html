@@ -3594,7 +3594,27 @@
         // ========================
         // iOS SIMULATOR
         // ========================
-        const IOS_BRIDGE = 'http://127.0.0.1:8766';
+        // Bridge lives next to whatever host serves the map (falls back to
+        // loopback for file:// opens), so the map works over a tailnet too.
+        // Remote use: ?bridge=<https tunnel url>&bridgekey=<SIM_BRIDGE_KEY>
+        // overrides (persisted in localStorage) so the HOSTED map can drive a
+        // sim bridge tunneled off someone's Mac. The key rides every bridge
+        // request as ?key= via the fetch shim below.
+        const _bridgeParams = new URLSearchParams(location.search);
+        if (_bridgeParams.get('bridge')) localStorage.setItem('dm_bridge', _bridgeParams.get('bridge'));
+        if (_bridgeParams.get('bridgekey')) localStorage.setItem('dm_bridge_key', _bridgeParams.get('bridgekey'));
+        const BRIDGE_KEY = localStorage.getItem('dm_bridge_key') || '';
+        const IOS_BRIDGE = (localStorage.getItem('dm_bridge') || '').replace(/\/$/, '')
+            || 'http://' + (location.hostname || '127.0.0.1') + ':8766';
+        {
+            const _origFetch = window.fetch.bind(window);
+            window.fetch = (url, opts) => {
+                if (typeof url === 'string' && BRIDGE_KEY && url.startsWith(IOS_BRIDGE)) {
+                    url += (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(BRIDGE_KEY);
+                }
+                return _origFetch(url, opts);
+            };
+        }
         let iosSimConnected = false;
         let iosScreens = [];          // captured screenshots (persisted per project)
         let iosConfig = null;         // config.ios section: bundleId, urlScheme, screens, navigation
@@ -3658,7 +3678,7 @@
 
         async function checkBridgeStatus() {
             try {
-                const res = await fetch(IOS_BRIDGE + '/api/status', { signal: AbortSignal.timeout(2000) });
+                const res = await fetch(IOS_BRIDGE + '/api/status', { signal: AbortSignal.timeout(8000) }); // 8s: first hit through the CF tunnel cold-starts >2s
                 if (res.ok) {
                     const data = await res.json();
                     iosSimConnected = true;

@@ -17,6 +17,7 @@ mkdir -p "$LOGDIR"
 TARGETS=(
   "8213|ready-app-boards|staging (tunnel)"
   "8311|ready-jobs-web|staging (tunnel)"
+  "8214|ready-driver-web|staging (tunnel)"
 )
 
 declare -A TUNNEL_PID
