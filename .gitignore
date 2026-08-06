@@ -7,3 +7,11 @@ import-*.json
 supabase/
 sync-worker/.sync-key
 .bridge-key
+node_modules/
+.next/
+.open-next/
+dist/
+.venv/
+*.tsbuildinfo
+.DS_Store
+*.log
