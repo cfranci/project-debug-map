@@ -1,9 +1,15 @@
 __pycache__/
 # internal project configs + bug data stay local (public repo)
+# only project.json (generic default) + project.example.json are tracked;
+# every other *.json map/board is a real-site blueprint and stays local.
 *.project.json
 !project.example.json
 board-bugs-restore.json
 import-*.json
+welcome-homekit.json
+*-homekit.json
+# private build/QA automation (references local paths + business data)
+intake/
 supabase/
 sync-worker/.sync-key
 .bridge-key
